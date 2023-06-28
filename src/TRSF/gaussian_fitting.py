@@ -87,7 +87,10 @@ def fit_gaussian_2d(img, maxfev,inital_guess=None):
         return gaussian_2d(xy,amplitude,x0,y0,sigma_x,sigma_y,theta).ravel()
 
     # bring scale of image up to 1
-    img_temp = np.copy(img/img.max() * 100)           # the optimzation algorithm is more stable if the image is scaled up to 0-100
+    
+    img_temp = np.copy(img/img.max() * 100)           
+
+    #the optimzation algorithm is more stable if the image is scaled up to 0-100
 
     ny, nx = img_temp.shape
     x, y = np.meshgrid(np.arange(nx), np.arange(ny))

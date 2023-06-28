@@ -3,12 +3,11 @@ author: Rhys Shaw
 email: rhys.shaw@bristol.ac.uk
 date: 28-06-2023
 description: This file contains the functions for the processing of cripser persistence diagrams.
+
 '''
 
 
 import cripser
-import numpy as np
-from src.utils import preprocessing, create_subimages
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas
@@ -23,6 +22,7 @@ def compute_ph_cripser(img,local_bg,sigma,maxdim=0):
     Filters it by liftime and local background.
     Returns a pandas dataframe with the persistence diagram.
 
+    
     Parameters
     ----------
     img : numpy array
@@ -34,11 +34,13 @@ def compute_ph_cripser(img,local_bg,sigma,maxdim=0):
     maxdim : int, optional  
         The maximum dimension of the persistence diagram. The default is 0.
 
+        
     Returns
     -------
     pd : pandas dataframe
         The persistence diagram.
 
+        
     '''
     pd = cripser.computePH(img,maxdim=maxdim)
     pd = pandas.DataFrame(pd,columns=['dim','Birth','Death','x1','y1','z1','x2','y2','z2'],index=range(1,len(pd)+1))
@@ -73,6 +75,7 @@ def ph_precocessing(pd,img,local_bg,sigma):
     pd : pandas dataframe
         the persistence diagram after the preprocessing.
 
+    
     '''
 
 
@@ -126,6 +129,8 @@ def get_enclosing_mask(x, y, mask):
     
     return mask & (~enclosed_mask)
 
+
+
 def make_point_enclosure_assoc(row,img,pd):
     '''
     Returns a list of the indices of the points that are enclosed by the mask pd point.
@@ -142,6 +147,8 @@ def make_point_enclosure_assoc(row,img,pd):
             # add column to pd    
             encloses.append(point.name)
     return encloses
+
+
 
 def death_correc(row,pd):
     '''
@@ -163,6 +170,8 @@ def death_correc(row,pd):
 
         return max_birth
 
+
+
 def alt_death_coord(row,coord,pd):
     '''
     alternative death coord to the new one.
@@ -181,7 +190,9 @@ def alt_death_coord(row,coord,pd):
             found_row = pd[pd['parent_tag']==row.parent_tag].loc[i]
             if -found_row.Birth == target:
                 return found_row.y1
-    
+
+
+
 def assign_tag(row,pd):
     '''
     assign a tag to the point based on which larger point it is enclosed by.
@@ -195,6 +206,8 @@ def assign_tag(row,pd):
             return list_name  # return the name of the row that contains the list
     return row_index # if no match is found then return the row_index
 
+
+
 def alter_infinit_death(row,value,local_bg,sigma):
     '''
     Correct the infinite death value.
@@ -206,6 +219,8 @@ def alter_infinit_death(row,value,local_bg,sigma):
     row.Birth = abs(row.Birth)
     row.Death = abs(row.Death)
     return row
+
+
 
 def create_new_row(dataframe):
     '''
@@ -220,6 +235,8 @@ def create_new_row(dataframe):
     dataframe = pandas.concat((dataframe,dataframe_copy))
     return dataframe
 
+
+
 def alter_brith_and_death(row):
     '''
     makes the birth and death values positive. 
@@ -229,6 +246,8 @@ def alter_brith_and_death(row):
     row.Death = np.abs(row.Death)
     return row
 
+
+
 def cap_death(row,local_bg,sigma):
     '''
     Capt the lowest death value to the local background value * a significance threshold.
@@ -236,6 +255,8 @@ def cap_death(row,local_bg,sigma):
     if row.Death < local_bg*sigma:
         row.Death = local_bg*sigma
     return row    
+
+
 
 def drop_row(row,max_len):
     '''
