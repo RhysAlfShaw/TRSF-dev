@@ -42,13 +42,17 @@ def compute_ph_cripser(img,local_bg,sigma,maxdim=0):
 
         
     '''
-    pd = cripser.computePH(img,maxdim=maxdim)
+    pd = cripser.computePH(-img,maxdim=maxdim)
     pd = pandas.DataFrame(pd,columns=['dim','Birth','Death','x1','y1','z1','x2','y2','z2'],index=range(1,len(pd)+1))
-    pd.drop(columns=['dim','z1','z2'])
+    pd.drop(columns=['dim','z1','z2'],inplace=True)
     pd['lifetime'] = pd['Death'] - pd['Birth']
-    pd.sort_values(by=['lifetime'],ascending=True,inplace=True)
+    pd['Birth'] = -pd['Birth'] # negative for max filtration
+    pd['Death'] = -pd['Death'] # negative for max filtration
+    pd.sort_values(by='lifetime',ascending=False,inplace=True)
     pd = pd[pd['lifetime'] > local_bg*sigma]
-
+    pd = pd[pd['Birth'] > local_bg*sigma]
+    pd['Death'] = np.where(pd['Death'] < local_bg*sigma, local_bg*sigma, pd['Death'])
+    pd['lifetime'] = pd['Death'] - pd['Birth']
     return pd
 
 
@@ -78,12 +82,8 @@ def ph_precocessing(pd,img,local_bg,sigma):
     
     '''
 
-
-    death_values = pd.Death.unique()
-    value = death_values.max()
-    del death_values
-
-    pd = pd.apply(lambda row :alter_infinit_death(row,value,local_bg,sigma),axis=1)
+    pd['new_row'] = 0
+    #pd = pd.apply(lambda row :alter_infinit_death(row,value,local_bg,sigma),axis=1)
     pd['encloses_i'] = pd.apply(lambda row: make_point_enclosure_assoc(row,img,pd),axis=1)
     pd['parent_tag'] = pd.apply(lambda row: assign_tag(row,pd),axis=1)
     pd['alt_Death'] = pd.apply(lambda row: death_correc(row,pd),axis=1)
@@ -91,6 +91,9 @@ def ph_precocessing(pd,img,local_bg,sigma):
     pd['alt_Death_y1'] = pd.apply(lambda row: alt_death_coord(row,'y',pd),axis=1)
     pd['len_enclosed'] = pd.apply(lambda row: len(row.encloses_i),axis=1)
     pd = create_new_row(pd)
+    pd.reset_index(inplace=True)
+    pd['encloses_i'] = pd.apply(lambda row: make_point_enclosure_assoc(row,img,pd),axis=1)
+    pd['parent_tag'] = pd.apply(lambda row: assign_tag(row,pd),axis=1)
     pd = pd.apply(alter_brith_and_death,axis=1)
     pd = pd.apply(lambda row: cap_death(row,local_bg,sigma),axis=1)
     pd.drop(columns=['alt_Death','alt_Death_x1','alt_Death_y1'],inplace=True)
@@ -98,7 +101,17 @@ def ph_precocessing(pd,img,local_bg,sigma):
     pd = pd.dropna()
     pd['lifetime'] = pd.apply(lambda row: row.Birth - row.Death,axis=1)
     pd.drop(columns=['encloses_i_len','encloses_i'],inplace=True)
+    pd['single'] = pd.apply(lambda row: classify_point(row),axis=1)
     return pd
+
+def classify_point(row):
+    if row.parent_tag == row.name:
+        if row.len_enclosed > 1:
+            return 2 # connected emission above threshold
+        else:
+            return 1 # single emission above threshold
+    else: 
+        return 0 # Component form connected emission.
 
 
 def get_enclosing_mask(x, y, mask):
@@ -137,7 +150,7 @@ def make_point_enclosure_assoc(row,img,pd):
     '''
     point = row
     mask = np.zeros(img.shape)
-    mask = np.logical_or(mask,np.logical_and(img <= point.Birth,img > point.Death))
+    mask = np.logical_or(mask,np.logical_and(img <= point.Birth,img >= point.Death))
     mask_enclosed = get_enclosing_mask(int(point.y1),int(point.x1),mask)
     # check if any brith points from other points are inside the mask
     encloses = []
@@ -160,10 +173,10 @@ def death_correc(row,pd):
         # find highest birth point
         brith = []
         for i in row.encloses_i:
-            found_row = pd[pd['parent_tag']==row.parent_tag].loc[i]
+            found_row = pd[pd.parent_tag==row.parent_tag].loc[i]
             if found_row.Birth == row.Birth:
                 continue
-            brith.append(-found_row.Birth)
+            brith.append(found_row.Birth)
         max_birth = np.max(brith)
         # identify the point with the highest birth point
         # remove self from list
@@ -182,13 +195,13 @@ def alt_death_coord(row,coord,pd):
         target = row.alt_Death
         for i in row.encloses_i:
             found_row = pd[pd['parent_tag']==row.parent_tag].loc[i]
-            if -found_row.Birth == target:
+            if found_row.Birth == target:
                 return found_row.x1
     if coord =='y':
         target = row.alt_Death
         for i in row.encloses_i:
             found_row = pd[pd['parent_tag']==row.parent_tag].loc[i]
-            if -found_row.Birth == target:
+            if found_row.Birth == target:
                 return found_row.y1
 
 
@@ -232,6 +245,8 @@ def create_new_row(dataframe):
     dataframe_copy['Death'] = dataframe['alt_Death']
     dataframe_copy['x2'] = dataframe['alt_Death_x1']
     dataframe_copy['y2'] = dataframe['alt_Death_y1']
+
+    dataframe_copy['new_row'] = dataframe_copy['new_row'] + 1
     dataframe = pandas.concat((dataframe,dataframe_copy))
     return dataframe
 
@@ -252,7 +267,7 @@ def cap_death(row,local_bg,sigma):
     '''
     Capt the lowest death value to the local background value * a significance threshold.
     '''
-    if row.Death < local_bg*sigma:
+    if row.Death <= local_bg*sigma:
         row.Death = local_bg*sigma
     return row    
 
@@ -262,7 +277,7 @@ def drop_row(row,max_len):
     '''
     Drop duplicate rows.
     '''
-    if row.encloses_i_len > 2:
+    if row.encloses_i_len >= 1:
         if row.encloses_i_len == max_len:
             return row
         else:
