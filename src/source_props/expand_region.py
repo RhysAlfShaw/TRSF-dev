@@ -79,13 +79,13 @@ def region_expansion_downhill(componet, Image, min_val, max_iter=3):
                     current_neightbour_vals.append(prop_pixel_val)
                     
                     if (mean_without>=prop_pixel_val) & (prop_pixel_val>=min_val):
-                        print("pixel at index {},{} is kept".format(i,j))
-                        print("pixel_val = {} and mean without = {}".format(prop_pixel_val,mean_without))
+                        #print("pixel at index {},{} is kept".format(i,j))
+                        #print("pixel_val = {} and mean without = {}".format(prop_pixel_val,mean_without))
                         # remove the pixel from the non_overlapping mask
                         non_overlapping[i,j] = True
                     else:
-                        print("pixel at index {},{} is removed".format(i,j))
-                        print("pixel_val = {} and mean without = {}".format(prop_pixel_val,mean_without))
+                        #print("pixel at index {},{} is removed".format(i,j))
+                        #print("pixel_val = {} and mean without = {}".format(prop_pixel_val,mean_without))
                         non_overlapping[i,j] = False
         
         if counter == max_iter:

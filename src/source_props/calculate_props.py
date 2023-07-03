@@ -11,6 +11,9 @@ import numpy as np
 import pandas
 from skimage import measure
 from src.source_props.expand_region import region_expansion_downhill
+from src.source_props.gaussian_fitting import fit_gaussian_2d
+import matplotlib.pyplot as plt
+from tqdm import tqdm
 
 class cal_props:
 
@@ -19,6 +22,71 @@ class cal_props:
         self.img = img
         self.local_bg = local_bg
         self.sigma = sigma
+
+    def calculate_bounding_box_of_mask(self,mask):
+        '''
+        Calculates the bounding box of a mask.
+        Returns the bounding box.
+        '''
+        regionprops = measure.regionprops(mask.astype(int))
+        return regionprops[0].bbox
+
+    def fit_all_single_sources(self):
+        '''
+        Fits all the single sources in the persistence diagram.
+        Returns a pandas dataframe with the properties of the sources.
+        '''
+        ss_pd = self.pd[self.pd['single']==1] # we do not what fit to extended sources.
+        params = []
+        for i in tqdm(range(len(ss_pd)),total=len(ss_pd),desc='Fitting single sources'):
+            # create mask
+            mask = self.create_source_mask(i,ss_pd)
+            
+            # get region props
+            regionprops = self.get_region_props(mask)
+            regionprops = self.props_to_dict(regionprops[0])
+            # expand mask to improve fitting.
+            # check if mask is empty
+            mask = self.expand_mask_downhill(mask)
+            bbox = self.calculate_bounding_box_of_mask(mask)
+            #print(mask.sum())
+            
+            if mask.sum() == 0:
+                print('Empty mask. {}'.format(ss_pd.iloc[i].name))
+                amp, x0, y0, sigma_x, sigma_y, theta = [np.nan,np.nan,np.nan,np.nan,np.nan,np.nan]
+                params.append([amp, x0, y0, sigma_x, sigma_y, theta])
+                continue
+            # crop mask based on regionprops bounding box
+            # bouding box need to be updated to account for the expansion.
+
+            temp_img = mask*self.img
+            temp_img = temp_img[bbox[0]:bbox[2],bbox[1]:bbox[3]]
+    
+            try:
+                amp, x0, y0, sigma_x, sigma_y, theta = self.gaussian_fit(temp_img,regionprops)
+            except RuntimeError:
+                print('RuntimeError: Failed to fit source. {}'.format(ss_pd.iloc[i].name))
+                amp, x0, y0, sigma_x, sigma_y, theta = [np.nan,np.nan,np.nan,np.nan,np.nan,np.nan]
+            # correct x0 and y0 for the bounding box.
+            x0 = x0 + bbox[1]
+            y0 = y0 + bbox[0]
+            params.append([amp, x0, y0, sigma_x, sigma_y, theta])
+        return params
+
+
+    def gaussian_fit(self,temp_img,regionprops):
+        
+        sigma_x = regionprops['major_axis_length']/2
+        sigma_y = regionprops['minor_axis_length']/2
+        theta = regionprops['orientation']
+        x0 = regionprops['centroid'][0]
+        y0 = regionprops['centroid'][1]
+        amp = regionprops['max_intensity']
+        guess = [amp,x0,y0,sigma_x,sigma_y,theta]
+        #print(guess)
+        params, fitted_gauss = fit_gaussian_2d(temp_img,maxfev=1000,inital_guess=guess)
+        amp, x0, y0, sigma_x, sigma_y, theta = params
+        return amp, x0, y0, sigma_x, sigma_y, theta
 
     def get_region_props(self,mask):
         region = measure.regionprops(mask,self.img)
@@ -29,6 +97,7 @@ class cal_props:
         return mask
     
     def props_to_dict(self,regionprops):
+        #print(regionprops)
         # return mask here if wanted.
         dict = {
             'area': regionprops.area,
@@ -54,11 +123,12 @@ class cal_props:
     def get_source(self,num):
         return self.pd.iloc[num]
     
-    def create_source_mask(self, idx):
-        point = self.get_source(idx)
+    def create_source_mask(self, idx, pd):
+        point = pd.iloc[idx]
         mask = np.zeros(self.img.shape)
         mask = np.logical_or(mask,np.logical_and(self.img <= point.Birth,self.img > point.Death))
         mask = self.get_enclosing_mask(int(point.y1),int(point.x1),mask)
+        mask = mask.astype(int)
         return mask
 
     def get_enclosing_mask(self,x, y, mask):
