@@ -49,7 +49,7 @@ def compute_ph_cripser(img,local_bg,sigma,maxdim=0):
     pd['Birth'] = -pd['Birth'] # negative for max filtration
     pd['Death'] = -pd['Death'] # negative for max filtration
     pd.sort_values(by='lifetime',ascending=False,inplace=True)
-    pd = pd[pd['lifetime'] > local_bg*sigma]
+    #pd = pd[pd['lifetime'] > local_bg*sigma]
     pd = pd[pd['Birth'] > local_bg*sigma]
     pd['Death'] = np.where(pd['Death'] < local_bg*sigma, local_bg*sigma, pd['Death'])
     pd['lifetime'] = pd['Death'] - pd['Birth']
@@ -92,6 +92,14 @@ def ph_precocessing(pd,img,local_bg,sigma):
     pd['len_enclosed'] = pd.apply(lambda row: len(row.encloses_i),axis=1)
     pd = create_new_row(pd)
     pd.reset_index(inplace=True)
+
+    # check if there are any valid new rows
+    if len(pd[pd['len_enclosed'] > 1]) == 0:    
+        pd['single'] = 1
+        pd.drop(columns=['alt_Death','alt_Death_x1','alt_Death_y1'],inplace=True)
+        pd = pd.dropna()
+        return pd
+    
     pd['encloses_i'] = pd.apply(lambda row: make_point_enclosure_assoc(row,img,pd),axis=1)
     pd['parent_tag'] = pd.apply(lambda row: assign_tag(row,pd),axis=1)
     pd = pd.apply(alter_brith_and_death,axis=1)

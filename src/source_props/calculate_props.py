@@ -1,4 +1,5 @@
 '''
+package: TRSF-SourceProperties
 author: Rhys Shaw
 email: rhys.shaw@bristol.ac.uk
 date: 30-06-2023
@@ -31,23 +32,27 @@ class cal_props:
         regionprops = measure.regionprops(mask.astype(int))
         return regionprops[0].bbox
 
+
     def fit_all_single_sources(self):
         '''
         Fits all the single sources in the persistence diagram.
         Returns a pandas dataframe with the properties of the sources.
         '''
-        ss_pd = self.pd[self.pd['single']==1] # we do not what fit to extended sources.
+        # prehaps a parrellization option here.
+        ss_pd = self.pd[self.pd['single']!=2] # we do not what fit to extended sources.
         params = []
         for i in tqdm(range(len(ss_pd)),total=len(ss_pd),desc='Fitting single sources'):
             # create mask
             mask = self.create_source_mask(i,ss_pd)
-            
+            name = ss_pd.iloc[i].name
             # get region props
             regionprops = self.get_region_props(mask)
             regionprops = self.props_to_dict(regionprops[0])
+        
             # expand mask to improve fitting.
             # check if mask is empty
-            mask = self.expand_mask_downhill(mask)
+            #
+            mask = self.expand_mask_downhill(mask,max_iter=5)
             bbox = self.calculate_bounding_box_of_mask(mask)
             #print(mask.sum())
             
@@ -61,17 +66,56 @@ class cal_props:
 
             temp_img = mask*self.img
             temp_img = temp_img[bbox[0]:bbox[2],bbox[1]:bbox[3]]
-    
+
             try:
+
                 amp, x0, y0, sigma_x, sigma_y, theta = self.gaussian_fit(temp_img,regionprops)
-            except RuntimeError:
+            
+            except (RuntimeError, TypeError): # we will assign these types of failures to nan.
                 print('RuntimeError: Failed to fit source. {}'.format(ss_pd.iloc[i].name))
                 amp, x0, y0, sigma_x, sigma_y, theta = [np.nan,np.nan,np.nan,np.nan,np.nan,np.nan]
             # correct x0 and y0 for the bounding box.
+        
+            #if self.fit_param_check(bbox,[amp, x0, y0, sigma_x, sigma_y, theta]):
             x0 = x0 + bbox[1]
             y0 = y0 + bbox[0]
-            params.append([amp, x0, y0, sigma_x, sigma_y, theta])
+            peak_flux = regionprops['max_intensity']
+            x_c = regionprops['centroid'][0]
+            y_c = regionprops['centroid'][1]
+            bbox = regionprops['bbox']
+            # add the pd params to the list.
+            
+            params.append([name, amp, x0, y0, sigma_x, sigma_y, theta, peak_flux, x_c, y_c, bbox,1])
+            # deconstruct regionprops.
+            
         return params
+    
+    def format_gaussian_fit(self,params):
+        pass
+    
+    def fit_param_check(self,bbox,params):
+        '''
+        Checks the fitting parameters for any issues.
+        '''
+        # check that the x0 and y0 are within the bounding box.
+        # check that the sigma_x and sigma_y are not more than 1x the size of the bounding box.
+        amp, x0, y0, sigma_x, sigma_y, theta = params
+        if x0 < bbox[1] or x0 > bbox[3]:
+            #print('x0 out of bounds. {}'.format(x0))
+            return False
+        if y0 < bbox[0] or y0 > bbox[2]:
+            #print('y0 out of bounds. {}'.format(y0))
+            return False
+        
+        if sigma_x > (bbox[3]-bbox[1]):
+            #print('sigma_x too big. {}'.format(sigma_x))
+            return False
+        if sigma_y > (bbox[2]-bbox[0]):
+            #print('sigma_y too big. {}'.format(sigma_y))
+            return False
+        return True
+        
+
 
 
     def gaussian_fit(self,temp_img,regionprops):
@@ -84,7 +128,7 @@ class cal_props:
         amp = regionprops['max_intensity']
         guess = [amp,x0,y0,sigma_x,sigma_y,theta]
         #print(guess)
-        params, fitted_gauss = fit_gaussian_2d(temp_img,maxfev=1000,inital_guess=guess)
+        params, fitted_gauss = fit_gaussian_2d(temp_img,maxfev=12000,inital_guess=guess)
         amp, x0, y0, sigma_x, sigma_y, theta = params
         return amp, x0, y0, sigma_x, sigma_y, theta
 
