@@ -14,7 +14,6 @@ import pandas
 
 
 
-
 def compute_ph_cripser(img,local_bg,sigma,maxdim=0):
     '''
     Computed the persistence diagram of the image using cripser.
@@ -55,6 +54,49 @@ def compute_ph_cripser(img,local_bg,sigma,maxdim=0):
     pd['lifetime'] = pd['Death'] - pd['Birth']
     return pd
 
+
+def apply_confusion_limit(pd,confusion_limit=3):
+    '''
+    Will remove all points that are within the confusion limit of each other. This is to ensure that later
+    multiple gaussians are not fitted to the same source.
+
+    Parameters
+    ----------
+    pd : pandas dataframe
+        The persistence diagram.
+    confusion_limit : float, optional
+        The confusion limit. The default is 3.
+
+    Returns
+    -------
+    pd : pandas dataframe
+        The persistence diagram with points removed.
+
+    Examples
+    --------
+    >>> from cripser_homol import apply_confusion_limit
+    >>> pd = apply_confusion_limit(pd,confusion_limit=3)
+
+    '''
+
+    indexes_to_drop = []
+    seperation = confusion_limit
+    for k in range(0,len(pd)):
+        point = pd.iloc[k]
+        for i in range(0,len(pd)):
+            if i == k:
+                continue
+
+            dist = np.sqrt((point.x1 - pd.iloc[i].x1)**2 + (point.y1 - pd.iloc[i].y1)**2)
+            if dist <= seperation:
+                if pd.iloc[i].lifetime < pd.iloc[k].lifetime:
+                    indexes_to_drop.append(pd.index[k])
+                else:
+                    indexes_to_drop.append(pd.index[i])
+
+    pd.drop(index=indexes_to_drop,inplace=True)
+
+    return pd
 
 def ph_precocessing(pd,img,local_bg,sigma):
     '''

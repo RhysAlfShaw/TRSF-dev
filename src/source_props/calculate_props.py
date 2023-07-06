@@ -15,14 +15,16 @@ from src.source_props.expand_region import region_expansion_downhill
 from src.source_props.gaussian_fitting import fit_gaussian_2d
 import matplotlib.pyplot as plt
 from tqdm import tqdm
+import time
 
 class cal_props:
 
-    def __init__(self, pd: pandas.DataFrame, img: np.ndarray, local_bg: float, sigma: float):
+    def __init__(self, pd: pandas.DataFrame, img: np.ndarray, local_bg: float, sigma: float, method: str = None):
         self.pd = pd
         self.img = img
         self.local_bg = local_bg
         self.sigma = sigma
+        self.method = method
 
     def calculate_bounding_box_of_mask(self,mask):
         '''
@@ -43,6 +45,7 @@ class cal_props:
         params = []
         for i in tqdm(range(len(ss_pd)),total=len(ss_pd),desc='Fitting single sources'):
             # create mask
+            
             mask = self.create_source_mask(i,ss_pd)
             name = ss_pd.iloc[i].name
             # get region props
@@ -52,6 +55,7 @@ class cal_props:
             # expand mask to improve fitting.
             # check if mask is empty
             #
+            # this takes a long time. around 0.75s for each source in a 500x500 image.
             mask = self.expand_mask_downhill(mask,max_iter=5)
             bbox = self.calculate_bounding_box_of_mask(mask)
             #print(mask.sum())
@@ -72,10 +76,9 @@ class cal_props:
                 amp, x0, y0, sigma_x, sigma_y, theta = self.gaussian_fit(temp_img,regionprops)
             
             except (RuntimeError, TypeError): # we will assign these types of failures to nan.
-                print('RuntimeError: Failed to fit source. {}'.format(ss_pd.iloc[i].name))
+                print('WARNING: Fitting Failure - Failed to fit source. ID {}'.format(ss_pd.iloc[i].name))
                 amp, x0, y0, sigma_x, sigma_y, theta = [np.nan,np.nan,np.nan,np.nan,np.nan,np.nan]
             # correct x0 and y0 for the bounding box.
-        
             #if self.fit_param_check(bbox,[amp, x0, y0, sigma_x, sigma_y, theta]):
             x0 = x0 + bbox[1]
             y0 = y0 + bbox[0]
@@ -87,7 +90,15 @@ class cal_props:
             
             params.append([name, amp, x0, y0, sigma_x, sigma_y, theta, peak_flux, x_c, y_c, bbox,1])
             # deconstruct regionprops.
-            
+        #arams_df = self.create_params_df(params)
+        return params
+    
+    def create_params_df(self,params):
+        '''
+        Creates a pandas dataframe from the parameters.
+        '''
+        columns = ['index','amp','x','y','sigma_x','sigma_y','theta','peak_flux','x_c','y_c','bbox','class']
+        params = pandas.DataFrame(params,columns)
         return params
     
     def format_gaussian_fit(self,params):
@@ -137,7 +148,7 @@ class cal_props:
         return region
     
     def expand_mask_downhill(self,mask,max_iter=3):
-        mask = region_expansion_downhill(mask,self.img,self.local_bg,max_iter=max_iter)
+        mask = region_expansion_downhill(mask,self.img,self.local_bg,method=self.method,max_iter=max_iter)
         return mask
     
     def props_to_dict(self,regionprops):

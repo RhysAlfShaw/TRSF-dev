@@ -1,8 +1,9 @@
 import numpy as np
 import pandas
 from scipy.ndimage import convolve, generate_binary_structure
+from src.source_props.region_expansion import compute as cython_compute
 
-def region_expansion_downhill(componet, Image, min_val, max_iter=3):
+def region_expansion_downhill(componet, Image, min_val, method=None, max_iter=3):
     counter = 0
     convergence = False
     while convergence == False:
@@ -21,78 +22,88 @@ def region_expansion_downhill(componet, Image, min_val, max_iter=3):
         
         before = np.copy(non_overlapping)
         
-        for i in range(non_overlapping.shape[0]):
-            for j in range(non_overlapping.shape[1]):
-                if non_overlapping[i,j] == False:
-                    continue
-                else:
-                    temp_img = Image*componet
-                    prop_pixel_val = Image[i,j]
-                    current_neightbour_vals = []
-
-                    # need to add a catch for image edges
-                    # left pixel 
-                    try:
-                        current_neightbour_vals.append(temp_img[i,j-1])
-                    except:
-                        continue
-                    # right pixel
-                    try:
-                        current_neightbour_vals.append(temp_img[i,j+1])
-                    except:
-                        continue
-                    # top pixel
-                    try:
-                        current_neightbour_vals.append(temp_img[i-1,j])
-                    except:
-                        continue
-                    # bottom pixel
-                    try:
-                        current_neightbour_vals.append(temp_img[i+1,j])
-                    except:
-                        continue
-                    # top left pixel
-                    try:
-                        current_neightbour_vals.append(temp_img[i-1,j-1])
-                    except:
-                        continue
-                        # top right pixel
-                    try:
-                        current_neightbour_vals.append(temp_img[i-1,j+1])
-                    except:
-                        continue
-                    # bottom left pixel
-                    try:
-                        current_neightbour_vals.append(temp_img[i+1,j-1])
-                    except:
-                        continue
-                    # bottom right pixel
-                    try:
-                        current_neightbour_vals.append(temp_img[i+1,j+1])
-                    except:
-                        continue
-                    del temp_img
-                    # calculate the mean of the current_neightbour_vals
-                    # remove zeros from the list
-                    current_neightbour_vals = [x for x in current_neightbour_vals if x != 0]
-                    mean_without = np.mean(current_neightbour_vals)
-                    current_neightbour_vals.append(prop_pixel_val)
-                    
-                    if (mean_without>=prop_pixel_val) & (prop_pixel_val>=min_val):
-                        #print("pixel at index {},{} is kept".format(i,j))
-                        #print("pixel_val = {} and mean without = {}".format(prop_pixel_val,mean_without))
-                        # remove the pixel from the non_overlapping mask
-                        non_overlapping[i,j] = True
-                    else:
-                        #print("pixel at index {},{} is removed".format(i,j))
-                        #print("pixel_val = {} and mean without = {}".format(prop_pixel_val,mean_without))
-                        non_overlapping[i,j] = False
-        
+        if method == "cython":
+            non_overlapping = non_overlapping.astype(np.int32)
+            componet = componet.astype(np.int32)
+            Image = Image.astype(np.float32)
+            non_overlapping = cython_compute(non_overlapping, Image, componet, min_val)
+        else:
+            non_overlapping = compute(non_overlapping, Image, componet, min_val)
         if counter == max_iter:
             convergence = True
         componet = np.logical_or(non_overlapping,componet)
     
     return componet
+
+def compute(non_overlapping, Image, componet, min_val):
+    for i in range(non_overlapping.shape[0]):
+        for j in range(non_overlapping.shape[1]):
+            if non_overlapping[i,j] == False:
+                continue
+            else:
+                temp_img = Image*componet
+                prop_pixel_val = Image[i,j]
+                current_neightbour_vals = []
+
+                # need to add a catch for image edges
+                # left pixel 
+                try:
+                    current_neightbour_vals.append(temp_img[i,j-1])
+                except:
+                    continue
+                # right pixel
+                try:
+                    current_neightbour_vals.append(temp_img[i,j+1])
+                except:
+                    continue
+                # top pixel
+                try:
+                    current_neightbour_vals.append(temp_img[i-1,j])
+                except:
+                    continue
+                # bottom pixel
+                try:
+                    current_neightbour_vals.append(temp_img[i+1,j])
+                except:
+                    continue
+                # top left pixel
+                try:
+                    current_neightbour_vals.append(temp_img[i-1,j-1])
+                except:
+                    continue
+                    # top right pixel
+                try:
+                    current_neightbour_vals.append(temp_img[i-1,j+1])
+                except:
+                    continue
+                # bottom left pixel
+                try:
+                    current_neightbour_vals.append(temp_img[i+1,j-1])
+                except:
+                    continue
+                # bottom right pixel
+                try:
+                    current_neightbour_vals.append(temp_img[i+1,j+1])
+                except:
+                    continue
+                del temp_img
+                # calculate the mean of the current_neightbour_vals
+                # remove zeros from the list
+                current_neightbour_vals = [x for x in current_neightbour_vals if x != 0]
+                mean_without = np.mean(current_neightbour_vals)
+                current_neightbour_vals.append(prop_pixel_val)
+                
+                if (mean_without>=prop_pixel_val) & (prop_pixel_val>=min_val):
+                    #print("pixel at index {},{} is kept".format(i,j))
+                    #print("pixel_val = {} and mean without = {}".format(prop_pixel_val,mean_without))
+                    # remove the pixel from the non_overlapping mask
+                    non_overlapping[i,j] = True
+                else:
+                    #print("pixel at index {},{} is removed".format(i,j))
+                    #print("pixel_val = {} and mean without = {}".format(prop_pixel_val,mean_without))
+                    non_overlapping[i,j] = False
+
+                
 
 def find_touching_neighbors_between_masks(mask1, mask2):
     """
