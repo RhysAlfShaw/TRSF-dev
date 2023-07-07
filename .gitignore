@@ -9,3 +9,4 @@ src/source_props/region_expansion.cpython-39-darwin.so
 src/source_props/build/lib.macosx-11.0-arm64-cpython-39/region_expansion.cpython-39-darwin.so
 src/.DS_Store
 src/source_props/build/temp.macosx-11.0-arm64-cpython-39/region_expansion.o
+src/source_props/region_expansion.c

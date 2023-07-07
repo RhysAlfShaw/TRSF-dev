@@ -94,6 +94,7 @@ def compute(non_overlapping, Image, componet, min_val):
                 current_neightbour_vals.append(prop_pixel_val)
                 
                 if (mean_without>=prop_pixel_val) & (prop_pixel_val>=min_val):
+
                     #print("pixel at index {},{} is kept".format(i,j))
                     #print("pixel_val = {} and mean without = {}".format(prop_pixel_val,mean_without))
                     # remove the pixel from the non_overlapping mask
@@ -102,7 +103,7 @@ def compute(non_overlapping, Image, componet, min_val):
                     #print("pixel at index {},{} is removed".format(i,j))
                     #print("pixel_val = {} and mean without = {}".format(prop_pixel_val,mean_without))
                     non_overlapping[i,j] = False
-
+    return non_overlapping
                 
 
 def find_touching_neighbors_between_masks(mask1, mask2):

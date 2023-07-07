@@ -1819,11 +1819,11 @@ typedef struct {
     #endif
 #endif
 
-/* CIntFromPy.proto */
-static CYTHON_INLINE int __Pyx_PyInt_As_int(PyObject *);
-
 /* CIntToPy.proto */
 static CYTHON_INLINE PyObject* __Pyx_PyInt_From_Py_intptr_t(Py_intptr_t value);
+
+/* CIntFromPy.proto */
+static CYTHON_INLINE int __Pyx_PyInt_As_int(PyObject *);
 
 /* CIntToPy.proto */
 static CYTHON_INLINE PyObject* __Pyx_PyInt_From_int(int value);
@@ -1893,7 +1893,7 @@ static PyTypeObject *__pyx_ptype_5numpy_character = 0;
 static PyTypeObject *__pyx_ptype_5numpy_ufunc = 0;
 
 /* Module declarations from 'region_expansion' */
-static PyArrayObject *__pyx_f_16region_expansion_compute(PyArrayObject *, PyArrayObject *, PyArrayObject *, int, int __pyx_skip_dispatch); /*proto*/
+static PyArrayObject *__pyx_f_16region_expansion_compute(PyArrayObject *, PyArrayObject *, PyArrayObject *, float, int __pyx_skip_dispatch); /*proto*/
 static __Pyx_TypeInfo __Pyx_TypeInfo_int = { "bint", NULL, sizeof(int), { 0 }, 0, IS_UNSIGNED(int) ? 'U' : 'I', IS_UNSIGNED(int), 0 };
 static __Pyx_TypeInfo __Pyx_TypeInfo_float = { "float", NULL, sizeof(float), { 0 }, 0, 'R', 0, 0 };
 #define __Pyx_MODULE_NAME "region_expansion"
@@ -1935,7 +1935,7 @@ static PyObject *__pyx_kp_s_numpy_core_multiarray_failed_to;
 static PyObject *__pyx_kp_s_numpy_core_umath_failed_to_impor;
 static PyObject *__pyx_n_s_range;
 static PyObject *__pyx_n_s_test;
-static PyObject *__pyx_pf_16region_expansion_compute(CYTHON_UNUSED PyObject *__pyx_self, PyArrayObject *__pyx_v_non_overlapping, PyArrayObject *__pyx_v_Image, PyArrayObject *__pyx_v_componet, int __pyx_v_min_val); /* proto */
+static PyObject *__pyx_pf_16region_expansion_compute(CYTHON_UNUSED PyObject *__pyx_self, PyArrayObject *__pyx_v_non_overlapping, PyArrayObject *__pyx_v_Image, PyArrayObject *__pyx_v_componet, float __pyx_v_min_val); /* proto */
 static PyObject *__pyx_int_0;
 static PyObject *__pyx_tuple_;
 static PyObject *__pyx_tuple__2;
@@ -1950,7 +1950,7 @@ static PyObject *__pyx_tuple__2;
  */
 
 static PyObject *__pyx_pw_16region_expansion_1compute(PyObject *__pyx_self, PyObject *__pyx_args, PyObject *__pyx_kwds); /*proto*/
-static PyArrayObject *__pyx_f_16region_expansion_compute(PyArrayObject *__pyx_v_non_overlapping, PyArrayObject *__pyx_v_Image, PyArrayObject *__pyx_v_componet, int __pyx_v_min_val, CYTHON_UNUSED int __pyx_skip_dispatch) {
+static PyArrayObject *__pyx_f_16region_expansion_compute(PyArrayObject *__pyx_v_non_overlapping, PyArrayObject *__pyx_v_Image, PyArrayObject *__pyx_v_componet, float __pyx_v_min_val, CYTHON_UNUSED int __pyx_skip_dispatch) {
   int __pyx_v_i;
   int __pyx_v_j;
   double __pyx_v_prop_pixel_val;
@@ -1985,7 +1985,6 @@ static PyArrayObject *__pyx_f_16region_expansion_compute(PyArrayObject *__pyx_v_
   int __pyx_t_17;
   Py_ssize_t __pyx_t_18;
   double __pyx_t_19;
-  int __pyx_t_20;
   int __pyx_lineno = 0;
   const char *__pyx_filename = NULL;
   int __pyx_clineno = 0;
@@ -3073,7 +3072,7 @@ static PyArrayObject *__pyx_f_16region_expansion_compute(PyArrayObject *__pyx_v_
  *             mean_without = np.mean(current_neightbour_vals)
  *             current_neightbour_vals.append(prop_pixel_val)             # <<<<<<<<<<<<<<
  * 
- *             if mean_without >= prop_pixel_val and prop_pixel_val >= min_val:
+ *             if (mean_without >= prop_pixel_val) & (prop_pixel_val >= min_val):
  */
       __pyx_t_11 = PyFloat_FromDouble(__pyx_v_prop_pixel_val); if (unlikely(!__pyx_t_11)) __PYX_ERR(0, 65, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_11);
@@ -3083,24 +3082,16 @@ static PyArrayObject *__pyx_f_16region_expansion_compute(PyArrayObject *__pyx_v_
       /* "region_expansion.pyx":67
  *             current_neightbour_vals.append(prop_pixel_val)
  * 
- *             if mean_without >= prop_pixel_val and prop_pixel_val >= min_val:             # <<<<<<<<<<<<<<
+ *             if (mean_without >= prop_pixel_val) & (prop_pixel_val >= min_val):             # <<<<<<<<<<<<<<
  *                 non_overlapping[i, j] = True
  *             else:
  */
-      __pyx_t_20 = ((__pyx_v_mean_without >= __pyx_v_prop_pixel_val) != 0);
-      if (__pyx_t_20) {
-      } else {
-        __pyx_t_10 = __pyx_t_20;
-        goto __pyx_L92_bool_binop_done;
-      }
-      __pyx_t_20 = ((__pyx_v_prop_pixel_val >= __pyx_v_min_val) != 0);
-      __pyx_t_10 = __pyx_t_20;
-      __pyx_L92_bool_binop_done:;
+      __pyx_t_10 = (((__pyx_v_mean_without >= __pyx_v_prop_pixel_val) & (__pyx_v_prop_pixel_val >= __pyx_v_min_val)) != 0);
       if (__pyx_t_10) {
 
         /* "region_expansion.pyx":68
  * 
- *             if mean_without >= prop_pixel_val and prop_pixel_val >= min_val:
+ *             if (mean_without >= prop_pixel_val) & (prop_pixel_val >= min_val):
  *                 non_overlapping[i, j] = True             # <<<<<<<<<<<<<<
  *             else:
  *                 non_overlapping[i, j] = False
@@ -3125,7 +3116,7 @@ static PyArrayObject *__pyx_f_16region_expansion_compute(PyArrayObject *__pyx_v_
         /* "region_expansion.pyx":67
  *             current_neightbour_vals.append(prop_pixel_val)
  * 
- *             if mean_without >= prop_pixel_val and prop_pixel_val >= min_val:             # <<<<<<<<<<<<<<
+ *             if (mean_without >= prop_pixel_val) & (prop_pixel_val >= min_val):             # <<<<<<<<<<<<<<
  *                 non_overlapping[i, j] = True
  *             else:
  */
@@ -3215,7 +3206,7 @@ static PyObject *__pyx_pw_16region_expansion_1compute(PyObject *__pyx_self, PyOb
   PyArrayObject *__pyx_v_non_overlapping = 0;
   PyArrayObject *__pyx_v_Image = 0;
   PyArrayObject *__pyx_v_componet = 0;
-  int __pyx_v_min_val;
+  float __pyx_v_min_val;
   int __pyx_lineno = 0;
   const char *__pyx_filename = NULL;
   int __pyx_clineno = 0;
@@ -3278,7 +3269,7 @@ static PyObject *__pyx_pw_16region_expansion_1compute(PyObject *__pyx_self, PyOb
     __pyx_v_non_overlapping = ((PyArrayObject *)values[0]);
     __pyx_v_Image = ((PyArrayObject *)values[1]);
     __pyx_v_componet = ((PyArrayObject *)values[2]);
-    __pyx_v_min_val = __Pyx_PyInt_As_int(values[3]); if (unlikely((__pyx_v_min_val == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 7, __pyx_L3_error)
+    __pyx_v_min_val = __pyx_PyFloat_AsFloat(values[3]); if (unlikely((__pyx_v_min_val == (float)-1) && PyErr_Occurred())) __PYX_ERR(0, 7, __pyx_L3_error)
   }
   goto __pyx_L4_argument_unpacking_done;
   __pyx_L5_argtuple_error:;
@@ -3302,7 +3293,7 @@ static PyObject *__pyx_pw_16region_expansion_1compute(PyObject *__pyx_self, PyOb
   return __pyx_r;
 }
 
-static PyObject *__pyx_pf_16region_expansion_compute(CYTHON_UNUSED PyObject *__pyx_self, PyArrayObject *__pyx_v_non_overlapping, PyArrayObject *__pyx_v_Image, PyArrayObject *__pyx_v_componet, int __pyx_v_min_val) {
+static PyObject *__pyx_pf_16region_expansion_compute(CYTHON_UNUSED PyObject *__pyx_self, PyArrayObject *__pyx_v_non_overlapping, PyArrayObject *__pyx_v_Image, PyArrayObject *__pyx_v_componet, float __pyx_v_min_val) {
   __Pyx_LocalBuf_ND __pyx_pybuffernd_Image;
   __Pyx_Buffer __pyx_pybuffer_Image;
   __Pyx_LocalBuf_ND __pyx_pybuffernd_componet;
@@ -7187,6 +7178,44 @@ static void __Pyx_ReleaseBuffer(Py_buffer *view) {
     #endif
 #endif
 
+/* CIntToPy */
+  static CYTHON_INLINE PyObject* __Pyx_PyInt_From_Py_intptr_t(Py_intptr_t value) {
+#ifdef __Pyx_HAS_GCC_DIAGNOSTIC
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wconversion"
+#endif
+    const Py_intptr_t neg_one = (Py_intptr_t) -1, const_zero = (Py_intptr_t) 0;
+#ifdef __Pyx_HAS_GCC_DIAGNOSTIC
+#pragma GCC diagnostic pop
+#endif
+    const int is_unsigned = neg_one > const_zero;
+    if (is_unsigned) {
+        if (sizeof(Py_intptr_t) < sizeof(long)) {
+            return PyInt_FromLong((long) value);
+        } else if (sizeof(Py_intptr_t) <= sizeof(unsigned long)) {
+            return PyLong_FromUnsignedLong((unsigned long) value);
+#ifdef HAVE_LONG_LONG
+        } else if (sizeof(Py_intptr_t) <= sizeof(unsigned PY_LONG_LONG)) {
+            return PyLong_FromUnsignedLongLong((unsigned PY_LONG_LONG) value);
+#endif
+        }
+    } else {
+        if (sizeof(Py_intptr_t) <= sizeof(long)) {
+            return PyInt_FromLong((long) value);
+#ifdef HAVE_LONG_LONG
+        } else if (sizeof(Py_intptr_t) <= sizeof(PY_LONG_LONG)) {
+            return PyLong_FromLongLong((PY_LONG_LONG) value);
+#endif
+        }
+    }
+    {
+        int one = 1; int little = (int)*(unsigned char *)&one;
+        unsigned char *bytes = (unsigned char *)&value;
+        return _PyLong_FromByteArray(bytes, sizeof(Py_intptr_t),
+                                     little, !is_unsigned);
+    }
+}
+
 /* CIntFromPy */
   static CYTHON_INLINE int __Pyx_PyInt_As_int(PyObject *x) {
 #ifdef __Pyx_HAS_GCC_DIAGNOSTIC
@@ -7381,44 +7410,6 @@ raise_neg_overflow:
     PyErr_SetString(PyExc_OverflowError,
         "can't convert negative value to int");
     return (int) -1;
-}
-
-/* CIntToPy */
-  static CYTHON_INLINE PyObject* __Pyx_PyInt_From_Py_intptr_t(Py_intptr_t value) {
-#ifdef __Pyx_HAS_GCC_DIAGNOSTIC
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wconversion"
-#endif
-    const Py_intptr_t neg_one = (Py_intptr_t) -1, const_zero = (Py_intptr_t) 0;
-#ifdef __Pyx_HAS_GCC_DIAGNOSTIC
-#pragma GCC diagnostic pop
-#endif
-    const int is_unsigned = neg_one > const_zero;
-    if (is_unsigned) {
-        if (sizeof(Py_intptr_t) < sizeof(long)) {
-            return PyInt_FromLong((long) value);
-        } else if (sizeof(Py_intptr_t) <= sizeof(unsigned long)) {
-            return PyLong_FromUnsignedLong((unsigned long) value);
-#ifdef HAVE_LONG_LONG
-        } else if (sizeof(Py_intptr_t) <= sizeof(unsigned PY_LONG_LONG)) {
-            return PyLong_FromUnsignedLongLong((unsigned PY_LONG_LONG) value);
-#endif
-        }
-    } else {
-        if (sizeof(Py_intptr_t) <= sizeof(long)) {
-            return PyInt_FromLong((long) value);
-#ifdef HAVE_LONG_LONG
-        } else if (sizeof(Py_intptr_t) <= sizeof(PY_LONG_LONG)) {
-            return PyLong_FromLongLong((PY_LONG_LONG) value);
-#endif
-        }
-    }
-    {
-        int one = 1; int little = (int)*(unsigned char *)&one;
-        unsigned char *bytes = (unsigned char *)&value;
-        return _PyLong_FromByteArray(bytes, sizeof(Py_intptr_t),
-                                     little, !is_unsigned);
-    }
 }
 
 /* CIntToPy */

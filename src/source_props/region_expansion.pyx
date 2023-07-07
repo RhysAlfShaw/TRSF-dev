@@ -4,7 +4,7 @@ cimport numpy as np
 cpdef np.ndarray[bint, ndim=2] compute(np.ndarray[bint, ndim=2] non_overlapping,
                                        np.ndarray[float, ndim=2] Image,
                                        np.ndarray[bint, ndim=2] componet,
-                                       int min_val):
+                                       float min_val):
     cdef int i, j
     cdef double prop_pixel_val, mean_without
     cdef list current_neightbour_vals
@@ -64,7 +64,7 @@ cpdef np.ndarray[bint, ndim=2] compute(np.ndarray[bint, ndim=2] non_overlapping,
             mean_without = np.mean(current_neightbour_vals)
             current_neightbour_vals.append(prop_pixel_val)
 
-            if mean_without >= prop_pixel_val and prop_pixel_val >= min_val:
+            if (mean_without >= prop_pixel_val) & (prop_pixel_val >= min_val):
                 non_overlapping[i, j] = True
             else:
                 non_overlapping[i, j] = False

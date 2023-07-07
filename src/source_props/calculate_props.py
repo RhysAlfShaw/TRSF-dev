@@ -35,13 +35,14 @@ class cal_props:
         return regionprops[0].bbox
 
 
-    def fit_all_single_sources(self):
+    def fit_all_single_sources(self,gaussian_fit: bool = True,expand: bool = True):
         '''
         Fits all the single sources in the persistence diagram.
         Returns a pandas dataframe with the properties of the sources.
         '''
-        # prehaps a parrellization option here.
-        ss_pd = self.pd[self.pd['single']!=2] # we do not what fit to extended sources.
+        # prehaps a parrellization option here. 
+        #ss_pd = self.pd 
+        ss_pd =self.pd[self.pd['single']!=2] # e do not what fit to extended sources.
         params = []
         for i in tqdm(range(len(ss_pd)),total=len(ss_pd),desc='Fitting single sources'):
             # create mask
@@ -56,27 +57,40 @@ class cal_props:
             # check if mask is empty
             #
             # this takes a long time. around 0.75s for each source in a 500x500 image.
-            mask = self.expand_mask_downhill(mask,max_iter=5)
-            bbox = self.calculate_bounding_box_of_mask(mask)
-            #print(mask.sum())
-            
-            if mask.sum() == 0:
-                print('Empty mask. {}'.format(ss_pd.iloc[i].name))
-                amp, x0, y0, sigma_x, sigma_y, theta = [np.nan,np.nan,np.nan,np.nan,np.nan,np.nan]
-                params.append([amp, x0, y0, sigma_x, sigma_y, theta])
-                continue
-            # crop mask based on regionprops bounding box
-            # bouding box need to be updated to account for the expansion.
+            if gaussian_fit == True:
+                if expand == True:
+                    mask = self.expand_mask_downhill(mask,max_iter=3)
+                bbox = self.calculate_bounding_box_of_mask(mask)
+                #print(mask.sum())
+                
+                if mask.sum() == 0:
+                    print('Empty mask. {}'.format(ss_pd.iloc[i].name))
+                    amp, x0, y0, sigma_x, sigma_y, theta = [np.nan,np.nan,np.nan,np.nan,np.nan,np.nan]
+                    params.append([amp, x0, y0, sigma_x, sigma_y, theta])
+                    continue
+                # crop mask based on regionprops bounding box
+                # bouding box need to be updated to account for the expansion.
 
-            temp_img = mask*self.img
-            temp_img = temp_img[bbox[0]:bbox[2],bbox[1]:bbox[3]]
+                temp_img = mask*self.img
+                temp_img = temp_img[bbox[0]:bbox[2],bbox[1]:bbox[3]]
 
-            try:
 
-                amp, x0, y0, sigma_x, sigma_y, theta = self.gaussian_fit(temp_img,regionprops)
-            
-            except (RuntimeError, TypeError): # we will assign these types of failures to nan.
-                print('WARNING: Fitting Failure - Failed to fit source. ID {}'.format(ss_pd.iloc[i].name))
+                try:
+
+                    amp, x0, y0, sigma_x, sigma_y, theta = self.gaussian_fit(temp_img,regionprops)
+                
+                except (RuntimeError, TypeError): # we will assign these types of failures to nan.
+                    print('WARNING: Fitting Failure - Failed to fit source. ID {}'.format(ss_pd.iloc[i].name))
+                    amp, x0, y0, sigma_x, sigma_y, theta = [np.nan,np.nan,np.nan,np.nan,np.nan,np.nan]
+            else:
+                #plt.imshow(mask)
+                #plt.show()
+                if expand == True:
+                    mask = self.expand_mask_downhill(mask,max_iter=3)
+                bbox = self.calculate_bounding_box_of_mask(mask)
+                #plt.imshow(mask)
+                #plt.plot([bbox[1],bbox[3],bbox[3],bbox[1],bbox[1]],[bbox[0],bbox[0],bbox[2],bbox[2],bbox[0]])
+                #plt.show()
                 amp, x0, y0, sigma_x, sigma_y, theta = [np.nan,np.nan,np.nan,np.nan,np.nan,np.nan]
             # correct x0 and y0 for the bounding box.
             #if self.fit_param_check(bbox,[amp, x0, y0, sigma_x, sigma_y, theta]):
@@ -85,10 +99,10 @@ class cal_props:
             peak_flux = regionprops['max_intensity']
             x_c = regionprops['centroid'][0]
             y_c = regionprops['centroid'][1]
-            bbox = regionprops['bbox']
+            bbox = bbox#regionprops['bbox']
             # add the pd params to the list.
             
-            params.append([name, amp, x0, y0, sigma_x, sigma_y, theta, peak_flux, x_c, y_c, bbox,1])
+            params.append([name, amp, x0, y0, sigma_x, sigma_y, theta, peak_flux, x_c, y_c, bbox,ss_pd.iloc[i]['single']])
             # deconstruct regionprops.
         #arams_df = self.create_params_df(params)
         return params
@@ -148,7 +162,7 @@ class cal_props:
         return region
     
     def expand_mask_downhill(self,mask,max_iter=3):
-        mask = region_expansion_downhill(mask,self.img,self.local_bg,method=self.method,max_iter=max_iter)
+        mask = region_expansion_downhill(mask,self.img,self.local_bg*self.sigma,method=self.method,max_iter=max_iter)
         return mask
     
     def props_to_dict(self,regionprops):

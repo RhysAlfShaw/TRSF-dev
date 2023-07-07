@@ -132,8 +132,9 @@ def ph_precocessing(pd,img,local_bg,sigma):
     pd['alt_Death_x1'] = pd.apply(lambda row: alt_death_coord(row,'x',pd),axis=1)
     pd['alt_Death_y1'] = pd.apply(lambda row: alt_death_coord(row,'y',pd),axis=1)
     pd['len_enclosed'] = pd.apply(lambda row: len(row.encloses_i),axis=1)
+    
     pd = create_new_row(pd)
-    pd.reset_index(inplace=True)
+    #pd.reset_index(inplace=True)
 
     # check if there are any valid new rows
     if len(pd[pd['len_enclosed'] > 1]) == 0:    
@@ -152,15 +153,23 @@ def ph_precocessing(pd,img,local_bg,sigma):
     pd['lifetime'] = pd.apply(lambda row: row.Birth - row.Death,axis=1)
     pd.drop(columns=['encloses_i_len','encloses_i'],inplace=True)
     pd['single'] = pd.apply(lambda row: classify_point(row),axis=1)
+
     return pd
 
 def classify_point(row):
     if row.parent_tag == row.name:
         if row.len_enclosed > 1:
+            if row.new_row == 1:
+                return 5
             return 2 # connected emission above threshold
         else:
             return 1 # single emission above threshold
-    else: 
+        
+    else:
+        if row.len_enclosed > 1:
+            if row.new_row == 1:
+                return 5
+            return 4 
         return 0 # Component form connected emission.
 
 
@@ -261,6 +270,7 @@ def assign_tag(row,pd):
     assign a tag to the point based on which larger point it is enclosed by.
     '''
     row_index = row.name
+    # flip row_index to opposite order
     name_list = pd.index
     for i, list_i in enumerate(pd.encloses_i):
         list_name = name_list[i]
@@ -295,7 +305,7 @@ def create_new_row(dataframe):
     dataframe_copy['Death'] = dataframe['alt_Death']
     dataframe_copy['x2'] = dataframe['alt_Death_x1']
     dataframe_copy['y2'] = dataframe['alt_Death_y1']
-
+    
     dataframe_copy['new_row'] = dataframe_copy['new_row'] + 1
     dataframe = pandas.concat((dataframe,dataframe_copy))
     return dataframe
