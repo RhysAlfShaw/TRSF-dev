@@ -9,7 +9,7 @@ Description: This file contains the functions for the parallelisation of the Gud
 from tqdm import *
 from multiprocessing import Pool
 import numpy as np
-from src.TRSF import create_regions
+from TRSF.homology import create_regions
 
 def _iterator(args):
     i, idx, dgm, img, threshold, detection, Xx, Yy = args

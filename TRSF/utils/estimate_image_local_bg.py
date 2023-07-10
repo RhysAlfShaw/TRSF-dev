@@ -6,7 +6,7 @@ desc:
     Estimate the local background of an image using median std.
 """
 from astropy.stats import mad_std
-from src.utils import hom_rms_estimate
+from TRSF.utils import hom_rms_estimate
 import numpy as np
 
 def estimate_bg_madstd(image):
@@ -25,7 +25,7 @@ def estimate_bg_madstd(image):
 
     """
     # Calculate the local background
-    local_bg = mad_std(image)
+    local_bg = mad_std(image, ignore_nan=True)
     print('local_bg', local_bg)
     return local_bg
 

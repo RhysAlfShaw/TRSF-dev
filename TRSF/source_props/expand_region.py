@@ -1,7 +1,7 @@
 import numpy as np
 import pandas
 from scipy.ndimage import convolve, generate_binary_structure
-from src.source_props.region_expansion import compute as cython_compute
+from TRSF.source_props.region_expansion import compute as cython_compute
 
 def region_expansion_downhill(componet, Image, min_val, method=None, max_iter=3):
     counter = 0
