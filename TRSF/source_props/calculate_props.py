@@ -6,7 +6,6 @@ date: 30-06-2023
 description: This file contains the functions for turning a processed persistence 
     diagram into a set of sources with properties.
 '''
-
 from typing import Any
 import numpy as np
 import pandas
@@ -16,6 +15,7 @@ from TRSF.source_props.gaussian_fitting import fit_gaussian_2d
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 import time
+import skimage.measure as measure
 
 class cal_props:
 
@@ -41,10 +41,9 @@ class cal_props:
         Returns a pandas dataframe with the properties of the sources.
         '''
         # prehaps a parrellization option here. 
-       
         ss_pd =self.pd[self.pd['single']!=2] # we do not what fit to extended components.
         params = []
-        for i in tqdm(range(len(ss_pd)),total=len(ss_pd),desc='Fitting single sources'):
+        for i in tqdm(range(len(ss_pd)),total=len(ss_pd),desc='Fitting single sources',leave=False):
             # create mask
             
             mask = self.create_source_mask(i,ss_pd)
@@ -83,14 +82,11 @@ class cal_props:
                     print('WARNING: Fitting Failure - Failed to fit source. ID {}'.format(ss_pd.iloc[i].name))
                     amp, x0, y0, sigma_x, sigma_y, theta = [np.nan,np.nan,np.nan,np.nan,np.nan,np.nan]
             else:
-                #plt.imshow(mask)
-                #plt.show()
+                
                 if expand == True:
                     mask = self.expand_mask_downhill(mask,max_iter=3)
                 bbox = self.calculate_bounding_box_of_mask(mask)
-                #plt.imshow(mask)
-                #plt.plot([bbox[1],bbox[3],bbox[3],bbox[1],bbox[1]],[bbox[0],bbox[0],bbox[2],bbox[2],bbox[0]])
-                #plt.show()
+                
                 amp, x0, y0, sigma_x, sigma_y, theta = [np.nan,np.nan,np.nan,np.nan,np.nan,np.nan]
             # correct x0 and y0 for the bounding box.
             #if self.fit_param_check(bbox,[amp, x0, y0, sigma_x, sigma_y, theta]):
@@ -107,17 +103,35 @@ class cal_props:
         
         return self.create_params_df(params)
     
+
+
+    def _polygon(self,row):
+        mask = np.zeros(self.img.shape)
+        mask = np.logical_or(mask,np.logical_and(self.img <= row.Birth,self.img > row.Death))
+        mask = self.get_enclosing_mask(int(row.y1),int(row.x1),mask)
+        mask = mask.astype(int)
+        #mask = self.create_source_mask_s(row)
+        # create polygon from the mask
+        contour = measure.find_contours(mask, 0.5)[0]    
+        # correct x,y of the contour for the image coords.
+        return contour
+
+
     def create_params_df(self,params):
         '''
         Creates a pandas dataframe from the parameters.
         '''
-
+        
         params = pandas.DataFrame(params,columns=['index','amp','x','y','sigma_x','sigma_y','theta','peak_flux','x_c','y_c','bbox','Class','Birth','Death','x1','y1','lifetime'])
         pd_alt_combine = self.pd[self.pd['single'] == 2]
+        #print(pd_alt_combine)
+        if len(pd_alt_combine) > 0:
+            pd_alt_combine['polygon'] = pd_alt_combine.apply(self._polygon,axis=1)
+        
         pd_alt_combine.rename({'single':'Class'})
         pd_alt_combine = pd_alt_combine.drop(columns=['new_row','parent_tag','len_enclosed'])
-        combined_dataframe = pandas.DataFrame(params,columns=['index','amp','x','y','sigma_x','sigma_y','theta','peak_flux','x_c','y_c','bbox','Class','single','Birth','Death','x1','y1'])
-        combined_dataframe = pandas.concat([combined_dataframe, pd_alt_combine])
+        #combined_dataframe = pandas.DataFrame(params,columns=['index','amp','x','y','sigma_x','sigma_y','theta','peak_flux','x_c','y_c','bbox','Class','single','Birth','Death','x1','y1'])
+        combined_dataframe = pandas.concat([params, pd_alt_combine])
         return combined_dataframe
     
     def format_gaussian_fit(self,params):
@@ -192,10 +206,19 @@ class cal_props:
 
         return self.pd.iloc[num]
     
+    def create_source_mask_s(self, row):
+        point = row
+        mask = np.zeros(self.img.shape)
+        mask = np.logical_or(mask,np.logical_and(self.img <= row.Birth,self.img > row.Death))
+        mask = self.get_enclosing_mask(int(row.y1),int(row.x1),mask)
+        mask = mask.astype(int)
+        return mask
+    
     def create_source_mask(self, idx, pd):
         '''
         
         '''
+        
         point = pd.iloc[idx]
         mask = np.zeros(self.img.shape)
         mask = np.logical_or(mask,np.logical_and(self.img <= point.Birth,self.img > point.Death))
