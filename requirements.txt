@@ -1,0 +1,5 @@
+pandas
+pytest
+numpy
+scikit-image
+git+https://github.com/shizuo-kaji/CubicalRipser_3dim
