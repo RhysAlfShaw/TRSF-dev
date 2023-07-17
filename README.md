@@ -1,7 +1,7 @@
 # TRSF (Topological Radio Source Finder)
 
-[![Run tests](https://github.com/RhysAlfShaw/TRSF/actions/workflows/pytest.yaml/badge.svg)](https://github.com/Abercardsea/Abercardsea-solution/actions/workflows/pytest.yaml)
-[![codecov](https://codecov.io/gh/RhysAlfShaw/TRSF/branch/main/graph/badge.svg?token=CFARAVMGZU)](https://codecov.io/gh/Abercardsea/Abercardsea-solution)
+[![Run tests](https://github.com/RhysAlfShaw/TRSF/actions/workflows/pytest.yaml/badge.svg)](https://github.com/RhysAlfShaw/TRSF/actions/workflows/pytest.yaml)
+[![codecov](https://codecov.io/gh/RhysAlfShaw/TRSF/branch/main/graph/badge.svg?token=CFARAVMGZU)](https://codecov.io/gh/RhysAlfShaw/TRSF)
 
 Currently in development tool for radio astronomers to find sources, specifically identifying components of well resolved sources.
 
