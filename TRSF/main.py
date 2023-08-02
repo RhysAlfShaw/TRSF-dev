@@ -89,7 +89,7 @@ class trsf:
 
 
     def _main(self):
-        # suppress all warnings
+        # suppress all warnings THESE SHOULD BE FIXED. 
         warnings.filterwarnings("ignore")
         t0 = time.time()
         print("""   
