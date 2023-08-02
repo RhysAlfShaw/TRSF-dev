@@ -53,7 +53,9 @@ class trsf:
         Saves the catalogue to the specified path. The type can be 'csv', 'hdf', 'fits' or 'json'.
         
     '''
-    def __init__(self, img_path, cutup_img_size=250, method='cython', gaussian_fitting=False, region_expansion=False,cutup_img = True,sigma=None,plot=True):
+    def __init__(self, img_path, cutup_img_size=250, method='cython', 
+                 gaussian_fitting=False, region_expansion=False,cutup_img = True,
+                 sigma=None,plot=True,expsigma=3,smoothing=False,smooth_param=1):
         self.img_path = img_path
         self.cutup_img = cutup_img 
         self.cutup_img_size = cutup_img_size
@@ -63,10 +65,14 @@ class trsf:
         self.method = method
         self.sigma = sigma
         self.sum_plot = plot
+        self.expsigma = expsigma
+        self.smoothing = smoothing
+        self.smooth_param = smooth_param
         #add here where it reads and prints image basic info.
         self._main()
     
     def save_catalogue(self, path: str, type: str) -> None:
+        self._set_data_types()
         if type == 'csv':
             self.catalogue.to_csv(path)
             print('Catalogue saved to {}'.format(path))
@@ -74,7 +80,8 @@ class trsf:
             self.catalogue.to_hdf(path,key='catalogue')
             print('Catalogue saved to {}'.format(path), 'with key "catalogue"')
         if type == 'fits':
-            
+            table = Table.from_pandas(self.catalogue)
+            table.write(path, format='fits', overwrite=True)
             print('Catalogue saved to {}'.format(path))
         if type == 'json':
             self.catalogue.to_json(path)
@@ -86,13 +93,13 @@ class trsf:
         warnings.filterwarnings("ignore")
         t0 = time.time()
         print("""   
-####################
+###########################
  _____   ___    ___    ___ 
 |_   _| | _ \  / __|  | __|
   | |   |   /  \__ \  | _| 
   |_|   |_|_\  |___/  |_|  
         
-####################
+###########################
 Topological Radio Source Finder.
         """)
         print('-------------------')
@@ -129,6 +136,8 @@ Topological Radio Source Finder.
                 # alter catalogue to include the cutout coordinates
                 src_cat['Yc'] = src_cat['x_c'] + self.Coords[num][0]
                 src_cat['Xc'] = src_cat['y_c'] + self.Coords[num][1]
+                src_cat['x'] = src_cat['x'] + self.Coords[num][1]
+                src_cat['y'] = src_cat['y'] + self.Coords[num][0]
                 # drop the columns that are not needed
                 src_cat = src_cat.drop(columns=['x_c','y_c'])
                 # rename the columns
@@ -172,7 +181,7 @@ Topological Radio Source Finder.
                 else:
                     self.catalogue = pandas.concat([self.catalogue,src_cat])
                 counter += 1
-        self._set_data_types()
+        
         if self.sum_plot == True:
             self._summary_plots()
         print('TRSF finished.')
@@ -210,6 +219,10 @@ Topological Radio Source Finder.
         self.full_img = self._crop_image(self.full_img)
         copy_full_img = self.full_img.copy()
         self.full_img[np.isnan(self.full_img)] = 0
+
+        if self.smoothing == True:
+            self.full_img = self._image_smoothing(img=self.full_img,smooth_param = self.smooth_param)
+
         print('NOTICE: Image Size with reduced padding {}'.format(self.full_img.shape))
         if len(self.full_img.shape) > 2:
             self.full_img = self.full_img[:,:,0]
@@ -226,12 +239,7 @@ Topological Radio Source Finder.
     def _calculate_persistence_diagrams(self,img,local_bg,sigma):
         pd = cripser_homol.compute_ph_cripser(img,local_bg,sigma,maxdim=0)
         pd = cripser_homol.apply_confusion_limit(pd,self.confusion_limit)
-        #print(local_bg, sigma)
-        #plt.imshow(img)
-        #plt.show()
-        #print('Number of points in diagram: {}'.format(len(pd)))
-        #print(pd)
-        # check if pd is empty
+        
         if len(pd) == 0:
             print('Empty persistence diagram. Skipping.')
         else:
@@ -244,7 +252,7 @@ Topological Radio Source Finder.
         return pd
     
     def _create_component_catalogue(self,pd,img,local_bg,sigma):
-        props = cp.cal_props(pd,img,local_bg,sigma,method=self.method)
+        props = cp.cal_props(pd,img,local_bg,sigma,method=self.method,expsigma=self.expsigma)
         source_catalogue = props.fit_all_single_sources(gaussian_fit=self.gaussian_fitting,expand=self.region_expansion)
         return source_catalogue
     
@@ -260,5 +268,19 @@ Topological Radio Source Finder.
         plt.imshow(self.full_img,vmax=np.nanpercentile(self.full_img,95),vmin=np.nanpercentile(self.full_img,0.1))
         plt.title('Image with Source Locations')
         plt.scatter(self.catalogue['x_c'],self.catalogue['y_c'],color='red',s=1,marker='+')
+        # plot polygons
+        for i in range(len(self.catalogue)):
+            try:
+                polygon = self.catalogue.iloc[i].polygon
+                plt.plot(polygon[:,1],polygon[:,0],color='red',alpha=0.5)
+            except:
+                pass
         plt.legend()
         plt.show()
+    
+    def _image_smoothing(self,img,smooth_param):
+        # import gaussian filter
+        from scipy.ndimage import gaussian_filter
+        # smooth image
+        img = gaussian_filter(img, sigma=smooth_param) # std of gaussian kernel
+        return img

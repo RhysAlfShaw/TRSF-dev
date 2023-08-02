@@ -3,6 +3,7 @@ import pandas
 from scipy.ndimage import convolve, generate_binary_structure
 from TRSF.source_props.region_expansion import compute as cython_compute
 
+
 def region_expansion_downhill(componet, Image, min_val, method=None, max_iter=3):
     counter = 0
     convergence = False
@@ -34,6 +35,7 @@ def region_expansion_downhill(componet, Image, min_val, method=None, max_iter=3)
         componet = np.logical_or(non_overlapping,componet)
     
     return componet
+
 
 def compute(non_overlapping, Image, componet, min_val):
     for i in range(non_overlapping.shape[0]):

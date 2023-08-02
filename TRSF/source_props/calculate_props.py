@@ -19,12 +19,13 @@ import skimage.measure as measure
 
 class cal_props:
 
-    def __init__(self, pd: pandas.DataFrame, img: np.ndarray, local_bg: float, sigma: float, method: str = None):
+    def __init__(self, pd: pandas.DataFrame, img: np.ndarray, local_bg: float, sigma: float, method: str = None,expsigma: float = 3):
         self.pd = pd
         self.img = img
         self.local_bg = local_bg
         self.sigma = sigma
         self.method = method
+        self.expsigma = expsigma
 
     def calculate_bounding_box_of_mask(self,mask):
         '''
@@ -59,7 +60,8 @@ class cal_props:
 
             if gaussian_fit == True:
                 if expand == True:
-                    mask = self.expand_mask_downhill(mask,max_iter=3)
+                    #print('Expanding mask')
+                    mask = self.expand_mask_downhill(mask,max_iter=5)
                 bbox = self.calculate_bounding_box_of_mask(mask)
                 
                 
@@ -77,8 +79,18 @@ class cal_props:
                 try:
 
                     amp, x0, y0, sigma_x, sigma_y, theta = self.gaussian_fit(temp_img,regionprops)
-                
-                except (RuntimeError, TypeError): # we will assign these types of failures to nan.
+                    # apply correction to x0 and y0 and check for boundaries, or extreamly elliptical fits.
+                except RuntimeError: # we will assign these types of failures to nan.
+                    # print the error this is for debugging.
+                    #plt.show()
+                    #plt.imshow(temp_img)
+                    #raise RuntimeError('Fitting Failure - Failed to fit source. ID {}'.format(ss_pd.iloc[i].name))
+                    print('WARNING: Fitting Failure - Failed to fit source. ID {}'.format(ss_pd.iloc[i].name))
+                    amp, x0, y0, sigma_x, sigma_y, theta = [np.nan,np.nan,np.nan,np.nan,np.nan,np.nan]
+                except TypeError:
+                    #plt.imshow(temp_img)
+                    #raise TypeError('Fitting Failure - Failed to fit source. ID {}'.format(ss_pd.iloc[i].name))
+                    #plt.show()
                     print('WARNING: Fitting Failure - Failed to fit source. ID {}'.format(ss_pd.iloc[i].name))
                     amp, x0, y0, sigma_x, sigma_y, theta = [np.nan,np.nan,np.nan,np.nan,np.nan,np.nan]
             else:
@@ -174,7 +186,7 @@ class cal_props:
         return region
     
     def expand_mask_downhill(self,mask,max_iter=3):
-        mask = region_expansion_downhill(mask,self.img,self.local_bg*self.sigma,method=self.method,max_iter=max_iter)
+        mask = region_expansion_downhill(mask,self.img,self.local_bg*self.expsigma,method=self.method,max_iter=max_iter)
         return mask
     
     def props_to_dict(self,regionprops):
