@@ -42,7 +42,9 @@ class cal_props:
         Returns a pandas dataframe with the properties of the sources.
         '''
         # prehaps a parrellization option here. 
-        ss_pd =self.pd[self.pd['single']!=2] # we do not what fit to extended components.
+        print(self.pd)
+        ss_pd =self.pd[self.pd['single']!=2] # we do not what fit to extended components.   
+        ss_pd = self.pd    
         params = []
         for i in tqdm(range(len(ss_pd)),total=len(ss_pd),desc='Fitting single sources',leave=False):
             # create mask

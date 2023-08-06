@@ -126,6 +126,7 @@ def ph_precocessing(pd,img,local_bg,sigma):
 
     pd['new_row'] = 0
     #pd = pd.apply(lambda row :alter_infinit_death(row,value,local_bg,sigma),axis=1)
+
     pd['encloses_i'] = pd.apply(lambda row: make_point_enclosure_assoc(row,img,pd),axis=1)
     pd['parent_tag'] = pd.apply(lambda row: assign_tag(row,pd),axis=1)
     pd['alt_Death'] = pd.apply(lambda row: death_correc(row,pd),axis=1)
@@ -210,16 +211,23 @@ def make_point_enclosure_assoc(row,img,pd):
     point = row
     mask = np.zeros(img.shape)
     mask = np.logical_or(mask,np.logical_and(img <= point.Birth,img >= point.Death))
+    #plt.imshow(mask)
+    #plt.scatter(point.x1,point.y1)
+    #plt.show()
     mask_enclosed = get_enclosing_mask(int(point.y1),int(point.x1),mask)
+    
     # check if any brith points from other points are inside the mask
+    
     encloses = []
     for i in range(len(pd)):
         point = pd.iloc[i]
         if mask_enclosed[int(point.x1),int(point.y1)]:
             # add column to pd    
             encloses.append(point.name)
+
     return encloses
 
+    
 
 
 def death_correc(row,pd):
@@ -228,6 +236,7 @@ def death_correc(row,pd):
     '''
     if len(row.encloses_i) == 1:
         return None
+    
     else:
         # find highest birth point
         brith = []

@@ -132,6 +132,7 @@ Topological Radio Source Finder.
                 pd = self._calculate_persistence_diagrams(img,local_bg,sigma)
                 if len(pd) == 0:
                     continue
+                print(pd)
                 src_cat = self._create_component_catalogue(pd,img,local_bg,sigma)
                 # alter catalogue to include the cutout coordinates
                 src_cat['Yc'] = src_cat['x_c'] + self.Coords[num][0]
@@ -226,11 +227,17 @@ Topological Radio Source Finder.
         print('NOTICE: Image Size with reduced padding {}'.format(self.full_img.shape))
         if len(self.full_img.shape) > 2:
             self.full_img = self.full_img[:,:,0]
+        if self.full_img.shape[0] != self.full_img.shape[1]:
+            self.full_img = self._make_square(self.full_img)
+
         if self.cutup_img == True:
             self.Cutouts, self.Coords = create_subimages.create_cutouts(copy_full_img,size=self.cutup_img_size)
+        # if image is not square, make it square
+        
         else:
             self.Cutouts = [self.full_img]
-        print('NOTICE: Image opened and cut into {} pieces.'.format(len(self.Cutouts)))
+            self.Coords = [(0,0)]
+            print('NOTICE: Image opened and cut into {} pieces.'.format(len(self.Cutouts)))
         
     def _background_estimate(self,img):
         local_bg, sigma = estimate_image_local_bg.estimate_bg_from_homology(img)
@@ -243,14 +250,26 @@ Topological Radio Source Finder.
         if len(pd) == 0:
             print('Empty persistence diagram. Skipping.')
         else:
-            try:
-                pd = cripser_homol.ph_precocessing(pd,img,local_bg,sigma)
-            except:
-                print('Error in preprocessing. Skipping.')
-                print(pd)
-                raise ValueError
+            #try:
+            pd = cripser_homol.ph_precocessing(pd,img,local_bg,sigma)
+            #except:
+            #    print('Error in preprocessing. Skipping.')
+            #    print(pd)
+                #raise ValueError
         return pd
     
+    def _make_square(self,img):
+        # make image square by adding padding
+        if img.shape[0] > img.shape[1]:
+            diff = img.shape[0] - img.shape[1]
+            pad = np.zeros((img.shape[0],diff))
+            img = np.concatenate((img,pad),axis=1)
+        elif img.shape[1] > img.shape[0]:
+            diff = img.shape[1] - img.shape[0]
+            pad = np.zeros((diff,img.shape[1]))
+            img = np.concatenate((img,pad),axis=0)
+        return img
+
     def _create_component_catalogue(self,pd,img,local_bg,sigma):
         props = cp.cal_props(pd,img,local_bg,sigma,method=self.method,expsigma=self.expsigma)
         source_catalogue = props.fit_all_single_sources(gaussian_fit=self.gaussian_fitting,expand=self.region_expansion)
