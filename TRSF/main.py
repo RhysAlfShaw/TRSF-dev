@@ -132,7 +132,7 @@ Topological Radio Source Finder.
                 pd = self._calculate_persistence_diagrams(img,local_bg,sigma)
                 if len(pd) == 0:
                     continue
-                print(pd)
+                
                 src_cat = self._create_component_catalogue(pd,img,local_bg,sigma)
                 # alter catalogue to include the cutout coordinates
                 src_cat['Yc'] = src_cat['x_c'] + self.Coords[num][0]

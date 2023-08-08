@@ -11,3 +11,5 @@ TRSF/source_props/build/temp.macosx-11.0-arm64-cpython-39/region_expansion.o
 TRSF/source_props/region_expansion.c
 profiling_code.ipynb
 test.ipynb
+figure2.png
+figure3.png

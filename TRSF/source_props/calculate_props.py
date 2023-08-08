@@ -42,7 +42,7 @@ class cal_props:
         Returns a pandas dataframe with the properties of the sources.
         '''
         # prehaps a parrellization option here. 
-        print(self.pd)
+       
         ss_pd =self.pd[self.pd['single']!=2] # we do not what fit to extended components.   
         ss_pd = self.pd    
         params = []
@@ -102,6 +102,13 @@ class cal_props:
                 bbox = self.calculate_bounding_box_of_mask(mask)
                 
                 amp, x0, y0, sigma_x, sigma_y, theta = [np.nan,np.nan,np.nan,np.nan,np.nan,np.nan]
+            
+            # calculate flux here # should be sum(mask*img)
+
+            Flux_tot = np.sum(mask*self.img)
+            Flux_peak = np.max(mask*self.img)
+            Area = np.sum(mask)
+            
             # correct x0 and y0 for the bounding box.
             #if self.fit_param_check(bbox,[amp, x0, y0, sigma_x, sigma_y, theta]):
             x0 = x0 + bbox[1]
@@ -112,7 +119,7 @@ class cal_props:
             bbox = bbox 
             params.append([name, amp, x0, y0, sigma_x, sigma_y, theta, peak_flux, x_c, y_c, 
                            bbox,ss_pd.iloc[i]['single'],ss_pd.iloc[i]['Birth'],ss_pd.iloc[i]['Death'],
-                           ss_pd.iloc[i]['x1'],ss_pd.iloc[i]['y1'],ss_pd.iloc[i]['lifetime']])
+                           ss_pd.iloc[i]['x1'],ss_pd.iloc[i]['y1'],ss_pd.iloc[i]['lifetime'],Flux_tot,Flux_peak,Area])
             
         
         return self.create_params_df(params)
@@ -128,7 +135,10 @@ class cal_props:
         # create polygon from the mask
         contour = measure.find_contours(mask, 0.5)[0]    
         # correct x,y of the contour for the image coords.
-        return contour
+        Flux_tot = np.sum(mask*self.img)
+        Flux_peak = np.max(mask*self.img)
+        Area = np.sum(mask)
+        return contour,Flux_tot,Flux_peak,Area
 
 
     def create_params_df(self,params):
@@ -136,12 +146,16 @@ class cal_props:
         Creates a pandas dataframe from the parameters.
         '''
         
-        params = pandas.DataFrame(params,columns=['index','amp','x','y','sigma_x','sigma_y','theta','peak_flux','x_c','y_c','bbox','Class','Birth','Death','x1','y1','lifetime'])
+        params = pandas.DataFrame(params,columns=['index','amp','x','y','sigma_x','sigma_y','theta','peak_flux','x_c','y_c','bbox','Class','Birth','Death','x1','y1','lifetime','flux_tot','flux_peak','area'])
         pd_alt_combine = self.pd[self.pd['single'] == 2]
         #print(pd_alt_combine)
         if len(pd_alt_combine) > 0:
-            pd_alt_combine['polygon'] = pd_alt_combine.apply(self._polygon,axis=1)
-        
+            result = pd_alt_combine.apply(self._polygon,axis=1,result_type='expand')
+            pd_alt_combine['polygon'] = result[0]
+            pd_alt_combine['flux_tot'] = result[1]
+            pd_alt_combine['flux_peak'] = result[2]
+            pd_alt_combine['area'] = result[3]
+
         pd_alt_combine.rename({'single':'Class'})
         pd_alt_combine = pd_alt_combine.drop(columns=['new_row','parent_tag','len_enclosed'])
         #combined_dataframe = pandas.DataFrame(params,columns=['index','amp','x','y','sigma_x','sigma_y','theta','peak_flux','x_c','y_c','bbox','Class','single','Birth','Death','x1','y1'])
