@@ -51,9 +51,18 @@ def compute_ph_cripser(img,local_bg,sigma,maxdim=0):
     #pd = pd[pd['lifetime'] > local_bg*sigma]
     pd = pd[pd['Birth'] > local_bg*sigma]
     pd['Death'] = np.where(pd['Death'] < local_bg*sigma, local_bg*sigma, pd['Death'])
-    pd['lifetime'] = pd['Death'] - pd['Birth']
+    pd['lifetime'] = abs(pd['Death'] - pd['Birth'])
+    #pd = pd[pd['lifetime'] > local_bg*5]
+    #pd['dist'] = pd.apply(lambda row: remove_1pixel_points(row),axis=1)
+    #pd = pd[pd['dist'] > 1]
+    #pd.drop(columns=['dist'],inplace=True)
     return pd
 
+
+def remove_1pixel_points(row):
+    # create mask for each point
+    dist = np.sqrt((row.x1-row.x2)**2 + (row.y1-row.y2)**2)
+    return dist
 
 def apply_confusion_limit(pd,confusion_limit=3):
     '''
@@ -128,6 +137,9 @@ def ph_precocessing(pd,img,local_bg,sigma):
     #pd = pd.apply(lambda row :alter_infinit_death(row,value,local_bg,sigma),axis=1)
 
     pd['encloses_i'] = pd.apply(lambda row: make_point_enclosure_assoc(row,img,pd),axis=1)
+    # new code.
+    #pd['enclosed_by_i'] = pd.apply(lambda row: enclosed_by(row,img,pd),axis=1)
+    #pd['parent_tag'] = pd.apply(lambda row: assign_tag_new(row,pd),axis=1)
     pd['parent_tag'] = pd.apply(lambda row: assign_tag(row,pd),axis=1)
     pd['alt_Death'] = pd.apply(lambda row: death_correc(row,pd),axis=1)
     pd['alt_Death_x1'] = pd.apply(lambda row: alt_death_coord(row,'x',pd),axis=1)
@@ -202,6 +214,30 @@ def get_enclosing_mask(x, y, mask):
     
     return mask & (~enclosed_mask)
 
+def assign_tag_new(row,pd):
+    name = row.name
+    list_of_potentials = row.enclosed_by_i
+    if len(list_of_potentials) == 0:
+        return name
+    else:
+        # find the next biggest number in the list that is more than name
+        list_of_potentials = [i for i in list_of_potentials if i > name]
+        if len(list_of_potentials) == 0:
+            return name
+        else:
+            return min(list_of_potentials)
+        
+
+def enclosed_by(row,img,pd):
+    '''for each row, find what point encloses it'''
+    id = row.name
+    # search through all points to see if its id is in any list int the ensloses_i column
+    list_par = []
+    for i, list_i in enumerate(pd.encloses_i):
+        if id in list_i:
+            list_par.append(pd.iloc[i].name)
+    return list_par
+        
 
 
 def make_point_enclosure_assoc(row,img,pd):
@@ -210,7 +246,7 @@ def make_point_enclosure_assoc(row,img,pd):
     '''
     point = row
     mask = np.zeros(img.shape)
-    mask = np.logical_or(mask,np.logical_and(img <= point.Birth,img >= point.Death))
+    mask = np.logical_or(mask,np.logical_and(img <= point.Birth,img > point.Death))
     #plt.imshow(mask)
     #plt.scatter(point.x1,point.y1)
     #plt.show()

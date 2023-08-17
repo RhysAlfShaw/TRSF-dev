@@ -11,7 +11,7 @@ from .utils import estimate_image_local_bg
 import numpy as np
 import pandas
 import matplotlib.pyplot as plt
-from .homology import cripser_homol
+from .homology import cripser_homol, cripser_homol_new
 from .source_props import calculate_props as cp
 from tqdm import tqdm
 import time
@@ -55,7 +55,11 @@ class trsf:
     '''
     def __init__(self, img_path, cutup_img_size=250, method='cython', 
                  gaussian_fitting=False, region_expansion=False,cutup_img = True,
-                 sigma=None,plot=True,expsigma=3,smoothing=False,smooth_param=1):
+                 sigma=None,plot=True,expsigma=3,smoothing=False,smooth_param=1,
+                 arrtype=False,arr=None,lifetime_limit=0,remove_1pixel=False,
+                 new_algorithm=True,pbcorr_path=None,pbcorr=False,pbimage=False,
+                 pboperation='divide'):
+        
         self.img_path = img_path
         self.cutup_img = cutup_img 
         self.cutup_img_size = cutup_img_size
@@ -68,6 +72,15 @@ class trsf:
         self.expsigma = expsigma
         self.smoothing = smoothing
         self.smooth_param = smooth_param
+        self.arr = arr
+        self.arrtype = arrtype
+        self.lifetime_limit = lifetime_limit
+        self.remove_1pixel = remove_1pixel
+        self.new_algorithm = new_algorithm
+        self.pbcorr_path = pbcorr_path
+        self.pbcorr = pbcorr
+        self.pbimage = pbimage
+        self.pboperation = pboperation
         #add here where it reads and prints image basic info.
         self._main()
     
@@ -106,7 +119,23 @@ Topological Radio Source Finder.
         print('Starting TRSF')
         print('NOTICE: Image path: {}'.format(self.img_path))
         print('Attempting to open Image...')
-        self._open_img()
+        if self.arrtype == False:
+            self.full_img, self.Cutouts, self.Coords = self._open_img(img_path=self.img_path)
+            if self.pbcorr == True:
+                print('Attempting to open PB Image...')
+                self.full_pbimg, self.Cutoutspb, self.Coordspb = self._open_img(img_path=self.pbcorr_path,
+                                                                                pbcorrection=True,
+                                                                                norm_imag=self.full_img,
+                                                                                operation=self.pboperation)
+                
+        else:
+            self.full_img = self.arr
+            self.Cutouts = [self.arr]
+            self.Coords = [(0,0)]
+        #plt.imshow(self.full_img,vmax=0.01)
+        #plt.show()
+        #plt.imshow(self.full_pbimg,vmax=0.01)
+        #plt.show()    
         print('Calculating persistence diagrams and source properties..')
         #self.full_img[np.isnan(self.full_img)] = 0
         counter = 0
@@ -129,11 +158,13 @@ Topological Radio Source Finder.
                     continue
                 img[np.isnan(img)] = 0
                 
+
                 pd = self._calculate_persistence_diagrams(img,local_bg,sigma)
+                
                 if len(pd) == 0:
                     continue
                 
-                src_cat = self._create_component_catalogue(pd,img,local_bg,sigma)
+                src_cat = self._create_component_catalogue(pd,img,local_bg,sigma,self.Cutoutspb[num])
                 # alter catalogue to include the cutout coordinates
                 src_cat['Yc'] = src_cat['x_c'] + self.Coords[num][0]
                 src_cat['Xc'] = src_cat['y_c'] + self.Coords[num][1]
@@ -185,9 +216,19 @@ Topological Radio Source Finder.
         
         if self.sum_plot == True:
             self._summary_plots()
+        self.catalogue = self.catalogue.apply(lambda row: self._calculate_int_flux(row),axis=1)
         print('TRSF finished.')
         print('Time taken: {} seconds'.format(time.time()-t0))
         print('-------------------')
+    
+    def _calculate_int_flux(self,row):
+
+        x, y = np.meshgrid(np.arange(0, 100, 1), np.arange(0, 100, 1))
+        try:
+            gaussian = row.amp * np.exp(-((x-50)**2/(2*row.sigma_x**2) + (y-50)**2/(2*row.sigma_y**2)))
+            return gaussian.sum()
+        except:
+            return row.flux_tot
 
     def _set_data_types(self):
         # set any nan to 0
@@ -214,48 +255,77 @@ Topological Radio Source Finder.
         self.catalogue['polygon'] = self.catalogue['polygon'].astype(str)
         self.catalogue['encloses_i'] = self.catalogue['encloses_i'].astype(str)
 
-    def _open_img(self):
-        self.full_img = preprocessing.preprocess(self.img_path,formatting=True).img 
-        print('NOTICE: Input Image Size {}'.format(self.full_img.shape))
-        self.full_img = self._crop_image(self.full_img)
-        copy_full_img = self.full_img.copy()
-        self.full_img[np.isnan(self.full_img)] = 0
+
+
+
+    def _open_img(self,img_path,pbcorrection=False,norm_imag=None,operation='divide'):
+        full_img = preprocessing.preprocess(img_path,formatting=True).img 
+        print('NOTICE: Input Image Size {}'.format(full_img.shape))
+        full_img = self._crop_image(full_img)
+        copy_full_img = full_img.copy()
+        full_img[np.isnan(full_img)] = 0
 
         if self.smoothing == True:
-            self.full_img = self._image_smoothing(img=self.full_img,smooth_param = self.smooth_param)
+            full_img = self._image_smoothing(img=full_img,smooth_param = self.smooth_param)
 
-        print('NOTICE: Image Size with reduced padding {}'.format(self.full_img.shape))
-        if len(self.full_img.shape) > 2:
-            self.full_img = self.full_img[:,:,0]
-        if self.full_img.shape[0] != self.full_img.shape[1]:
-            self.full_img = self._make_square(self.full_img)
-
+        print('NOTICE: Image Size with reduced padding {}'.format(full_img.shape))
+        if len(full_img.shape) > 2:
+            full_img = full_img[:,:,0]
+        if full_img.shape[0] != full_img.shape[1]:
+            full_img = self._make_square(full_img)
+        
+        if pbcorrection == True:
+            print('NOTICE: Image being pbcorrected.')
+            if operation == 'divide':
+                print('NOTICE: Image being divided by pbcorrection image.')
+                full_img = full_img/norm_imag
+            elif operation == 'multiply':
+                print('NOTICE: Image being multiplied by pbcorrection image.')
+                full_img = full_img*norm_imag 
+            
         if self.cutup_img == True:
-            self.Cutouts, self.Coords = create_subimages.create_cutouts(copy_full_img,size=self.cutup_img_size)
+            if pbcorrection == True:
+                print('NOTICE: Image being pbcorrected.')
+                if operation == 'divide':
+                    print('NOTICE: Image being divided by pbcorrection image.')
+              
+                    full_img = copy_full_img/norm_imag
+                elif operation == 'multiply':
+                    print('NOTICE: Image being multiplied by pbcorrection image.')
+                    copy_full_img = copy_full_img*norm_imag 
+
+            Cutouts, Coords = create_subimages.create_cutouts(copy_full_img,size=self.cutup_img_size)
         # if image is not square, make it square
         
         else:
-            self.Cutouts = [self.full_img]
-            self.Coords = [(0,0)]
-            print('NOTICE: Image opened and cut into {} pieces.'.format(len(self.Cutouts)))
+            Cutouts = [full_img]
+            Coords = [(0,0)]
+            print('NOTICE: Image opened and cut into {} pieces.'.format(len(Cutouts)))
+        return full_img, Cutouts, Coords
         
+
+
     def _background_estimate(self,img):
         local_bg, sigma = estimate_image_local_bg.estimate_bg_from_homology(img)
         return local_bg, sigma
 
+
+
+
     def _calculate_persistence_diagrams(self,img,local_bg,sigma):
-        pd = cripser_homol.compute_ph_cripser(img,local_bg,sigma,maxdim=0)
-        pd = cripser_homol.apply_confusion_limit(pd,self.confusion_limit)
+        if self.new_algorithm == False:
+
+            pd = cripser_homol.compute_ph_cripser(img,local_bg,sigma,maxdim=0)
+            pd = cripser_homol.apply_confusion_limit(pd,self.confusion_limit)
+            if len(pd) == 0:
+                print('Empty persistence diagram. Skipping.')
+            else:
+                pd = cripser_homol.ph_precocessing(pd,img,local_bg,sigma)
+                
+               
+        elif self.new_algorithm == True:
+            pd = cripser_homol_new.compute_ph_cripser(img,local_bg,sigma,maxdim=0,lifetime_limit=self.lifetime_limit,remove_1pixel=self.remove_1pixel)
         
-        if len(pd) == 0:
-            print('Empty persistence diagram. Skipping.')
-        else:
-            #try:
-            pd = cripser_homol.ph_precocessing(pd,img,local_bg,sigma)
-            #except:
-            #    print('Error in preprocessing. Skipping.')
-            #    print(pd)
-                #raise ValueError
         return pd
     
     def _make_square(self,img):
@@ -270,8 +340,8 @@ Topological Radio Source Finder.
             img = np.concatenate((img,pad),axis=0)
         return img
 
-    def _create_component_catalogue(self,pd,img,local_bg,sigma):
-        props = cp.cal_props(pd,img,local_bg,sigma,method=self.method,expsigma=self.expsigma)
+    def _create_component_catalogue(self,pd,img,local_bg,sigma,pbimg):
+        props = cp.cal_props(pd,img,local_bg,sigma,pbimg=pbimg,method=self.method,expsigma=self.expsigma)
         source_catalogue = props.fit_all_single_sources(gaussian_fit=self.gaussian_fitting,expand=self.region_expansion)
         return source_catalogue
     

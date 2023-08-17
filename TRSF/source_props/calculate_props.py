@@ -14,18 +14,21 @@ from TRSF.source_props.expand_region import region_expansion_downhill
 from TRSF.source_props.gaussian_fitting import fit_gaussian_2d
 import matplotlib.pyplot as plt
 from tqdm import tqdm
+from astropy.io import fits 
 import time
 import skimage.measure as measure
+from astropy.stats import mad_std
 
 class cal_props:
 
-    def __init__(self, pd: pandas.DataFrame, img: np.ndarray, local_bg: float, sigma: float, method: str = None,expsigma: float = 3):
+    def __init__(self, pd: pandas.DataFrame, img: np.ndarray, local_bg: float, sigma: float, pbimg = None,method: str = None,expsigma: float = 3):
         self.pd = pd
         self.img = img
         self.local_bg = local_bg
         self.sigma = sigma
         self.method = method
         self.expsigma = expsigma
+        self.pbimg = pbimg
 
     def calculate_bounding_box_of_mask(self,mask):
         '''
@@ -35,6 +38,37 @@ class cal_props:
         regionprops = measure.regionprops(mask.astype(int))
         return regionprops[0].bbox
 
+    def _open_img_pbcorr(self,img_path):
+        hdu = fits.open(img_path)
+        img = hdu[0].data
+        # measure shape 
+        img = np.squeeze(img,axis=(0,1))
+        
+        print('pbcorr Image shape: {}'.format(img.shape))
+        img = self._crop_image(img)
+        print('pbcorr Image shape: {}'.format(img.shape))
+        img[np.isnan(img)] = 0
+        if img.shape[0] != img.shape[1]:
+            img = self._make_square(img)
+        return img
+    
+    def _make_square(self,img):
+        # make image square by adding padding
+        if img.shape[0] > img.shape[1]:
+            diff = img.shape[0] - img.shape[1]
+            pad = np.zeros((img.shape[0],diff))
+            img = np.concatenate((img,pad),axis=1)
+        elif img.shape[1] > img.shape[0]:
+            diff = img.shape[1] - img.shape[0]
+            pad = np.zeros((diff,img.shape[1]))
+            img = np.concatenate((img,pad),axis=0)
+        return img
+    
+    def _crop_image(self,arr): 
+        arr = np.array(arr)  # Convert input to numpy array
+        mask_rows = np.all(np.isnan(arr), axis=1)
+        mask_cols = np.all(np.isnan(arr), axis=0)
+        return arr[~mask_rows][:, ~mask_cols]
 
     def fit_all_single_sources(self,gaussian_fit: bool = True,expand: bool = True):
         '''
@@ -42,7 +76,21 @@ class cal_props:
         Returns a pandas dataframe with the properties of the sources.
         '''
         # prehaps a parrellization option here. 
-       
+        #if pbcorr == True and pbimage==True: # corrected image
+        #    pbcorrimg = self._open_img_pbcorr(pbcorr_path)
+            
+            # open pbcorr img same as original img.
+            # if image is tghe primary beam, them create the corrected image.
+        #if pbcorr == True and pbimage == False:
+        #    pbimg = self._open_img_pbcorr(pbcorr_path)
+            # make corrected image
+            # are the images the same shape?
+        #    if pbimg.shape != self.img.shape:
+        #        print(pbimg.shape,self.img.shape)
+        #        raise ValueError('Image and primary beam image are not the same shape, make change and try again.')
+            
+        #    pbcorrimg = self.img/pbimg
+
         ss_pd =self.pd[self.pd['single']!=2] # we do not what fit to extended components.   
         ss_pd = self.pd    
         params = []
@@ -103,10 +151,21 @@ class cal_props:
                 
                 amp, x0, y0, sigma_x, sigma_y, theta = [np.nan,np.nan,np.nan,np.nan,np.nan,np.nan]
             
-            # calculate flux here # should be sum(mask*img)
 
-            Flux_tot = np.sum(mask*self.img)
-            Flux_peak = np.max(mask*self.img)
+
+            # calculate flux here # should be sum(mask*img)
+            if self.pbimg is None:
+                Flux_tot_corr = 0
+                Flux_peak_corr = 0
+            else:
+            
+                background = mad_std(self.pbimg)
+                Flux_tot_corr = np.nansum(mask*self.pbimg)      # - background
+                Flux_peak_corr = np.nanmax(mask*self.pbimg)     # - background
+                #print('Corrected Flux {}'.format(Flux_tot_corr))
+            background = mad_std(self.img)
+            Flux_tot = np.sum(mask*self.img) - background 
+            Flux_peak = np.max(mask*self.img) - background
             Area = np.sum(mask)
             
             # correct x0 and y0 for the bounding box.
@@ -119,7 +178,7 @@ class cal_props:
             bbox = bbox 
             params.append([name, amp, x0, y0, sigma_x, sigma_y, theta, peak_flux, x_c, y_c, 
                            bbox,ss_pd.iloc[i]['single'],ss_pd.iloc[i]['Birth'],ss_pd.iloc[i]['Death'],
-                           ss_pd.iloc[i]['x1'],ss_pd.iloc[i]['y1'],ss_pd.iloc[i]['lifetime'],Flux_tot,Flux_peak,Area])
+                           ss_pd.iloc[i]['x1'],ss_pd.iloc[i]['y1'],ss_pd.iloc[i]['lifetime'],Flux_tot,Flux_peak,Flux_peak_corr,Flux_tot_corr,Area])
             
         
         return self.create_params_df(params)
@@ -138,7 +197,9 @@ class cal_props:
         Flux_tot = np.sum(mask*self.img)
         Flux_peak = np.max(mask*self.img)
         Area = np.sum(mask)
-        return contour,Flux_tot,Flux_peak,Area
+        Flux_tot_corr = np.sum(mask*self.pbimg)
+        Flux_peak_corr = np.max(mask*self.pbimg)
+        return contour,Flux_tot,Flux_peak,Area,Flux_tot_corr,Flux_peak_corr
 
 
     def create_params_df(self,params):
@@ -146,7 +207,7 @@ class cal_props:
         Creates a pandas dataframe from the parameters.
         '''
         
-        params = pandas.DataFrame(params,columns=['index','amp','x','y','sigma_x','sigma_y','theta','peak_flux','x_c','y_c','bbox','Class','Birth','Death','x1','y1','lifetime','flux_tot','flux_peak','area'])
+        params = pandas.DataFrame(params,columns=['index','amp','x','y','sigma_x','sigma_y','theta','peak_flux','x_c','y_c','bbox','Class','Birth','Death','x1','y1','lifetime','flux_tot','flux_peak','flux_peak_corr','flux_tot_corr','area'])
         pd_alt_combine = self.pd[self.pd['single'] == 2]
         #print(pd_alt_combine)
         if len(pd_alt_combine) > 0:
@@ -154,11 +215,22 @@ class cal_props:
             pd_alt_combine['polygon'] = result[0]
             pd_alt_combine['flux_tot'] = result[1]
             pd_alt_combine['flux_peak'] = result[2]
+            
             pd_alt_combine['area'] = result[3]
 
+            pd_alt_combine['flux_tot_corr'] = result[4]
+            pd_alt_combine['flux_peak_corr'] = result[5]
+
         pd_alt_combine.rename({'single':'Class'})
-        pd_alt_combine = pd_alt_combine.drop(columns=['new_row','parent_tag','len_enclosed'])
-        #combined_dataframe = pandas.DataFrame(params,columns=['index','amp','x','y','sigma_x','sigma_y','theta','peak_flux','x_c','y_c','bbox','Class','single','Birth','Death','x1','y1'])
+        try:
+            pd_alt_combine = pd_alt_combine.drop(columns=['new_row','parent_tag','dist','enclosed_i'])
+        except KeyError:
+            #print(pd_alt_combine.columns)
+            if 'encloses_i' not in pd_alt_combine.columns:
+                pd_alt_combine['encloses_i'] = 0
+            pd_alt_combine = pd_alt_combine.drop(columns=['new_row','len_enclosed','encloses_i'])
+                    #combined_dataframe = pandas.DataFrame(params,columns=['index','amp','x','y','sigma_x','sigma_y','theta','peak_flux','x_c','y_c','bbox','Class','single','Birth','Death','x1','y1'])
+        
         combined_dataframe = pandas.concat([params, pd_alt_combine])
         return combined_dataframe
     
