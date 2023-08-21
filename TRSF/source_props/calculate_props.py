@@ -91,7 +91,7 @@ class cal_props:
             
         #    pbcorrimg = self.img/pbimg
 
-        ss_pd =self.pd[self.pd['single']!=2] # we do not what fit to extended components.   
+        #ss_pd =self.pd[self.pd['single']!=2] # we do not what fit to extended components.   
         ss_pd = self.pd    
         params = []
         for i in tqdm(range(len(ss_pd)),total=len(ss_pd),desc='Fitting single sources',leave=False):
@@ -135,13 +135,13 @@ class cal_props:
                     #plt.show()
                     #plt.imshow(temp_img)
                     #raise RuntimeError('Fitting Failure - Failed to fit source. ID {}'.format(ss_pd.iloc[i].name))
-                    print('WARNING: Fitting Failure - Failed to fit source. ID {}'.format(ss_pd.iloc[i].name))
+                    #print('WARNING: Fitting Failure - Failed to fit source. ID {}'.format(ss_pd.iloc[i].name))
                     amp, x0, y0, sigma_x, sigma_y, theta = [np.nan,np.nan,np.nan,np.nan,np.nan,np.nan]
                 except TypeError:
                     #plt.imshow(temp_img)
                     #raise TypeError('Fitting Failure - Failed to fit source. ID {}'.format(ss_pd.iloc[i].name))
                     #plt.show()
-                    print('WARNING: Fitting Failure - Failed to fit source. ID {}'.format(ss_pd.iloc[i].name))
+                    #print('WARNING: Fitting Failure - Failed to fit source. ID {}'.format(ss_pd.iloc[i].name))
                     amp, x0, y0, sigma_x, sigma_y, theta = [np.nan,np.nan,np.nan,np.nan,np.nan,np.nan]
             else:
                 
@@ -158,10 +158,15 @@ class cal_props:
                 Flux_tot_corr = 0
                 Flux_peak_corr = 0
             else:
-            
+                
                 background = mad_std(self.pbimg)
-                Flux_tot_corr = np.nansum(mask*self.pbimg)      # - background
-                Flux_peak_corr = np.nanmax(mask*self.pbimg)     # - background
+                # if shape of mask and image are not the same, then we crop the pbimg to the mask shape.
+                if mask.shape != self.pbimg.shape:
+                    pbimg = np.resize(self.pbimg, mask.shape)
+                else:
+                    pbimg = self.pbimg
+                Flux_tot_corr = np.nansum(mask*pbimg)      # - background
+                Flux_peak_corr = np.nanmax(mask*pbimg)     # - background
                 #print('Corrected Flux {}'.format(Flux_tot_corr))
             background = mad_std(self.img)
             Flux_tot = np.sum(mask*self.img) - background 
@@ -197,8 +202,12 @@ class cal_props:
         Flux_tot = np.sum(mask*self.img)
         Flux_peak = np.max(mask*self.img)
         Area = np.sum(mask)
-        Flux_tot_corr = np.sum(mask*self.pbimg)
-        Flux_peak_corr = np.max(mask*self.pbimg)
+        if mask.shape != self.pbimg.shape:
+            pbimg = np.resize(self.pbimg, mask.shape)
+        else:
+            pbimg = self.pbimg
+        Flux_tot_corr = np.nansum(mask*pbimg)      # - background
+        Flux_peak_corr = np.nanmax(mask*pbimg)  
         return contour,Flux_tot,Flux_peak,Area,Flux_tot_corr,Flux_peak_corr
 
 

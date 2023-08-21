@@ -127,11 +127,17 @@ Topological Radio Source Finder.
                                                                                 pbcorrection=True,
                                                                                 norm_imag=self.full_img,
                                                                                 operation=self.pboperation)
-                
+            else:
+                self.full_pbimg = self.full_img
+                self.Cutoutspb = self.Cutouts
+                self.Coordspb = self.Coords
         else:
             self.full_img = self.arr
             self.Cutouts = [self.arr]
             self.Coords = [(0,0)]
+            self.full_pbimg = self.full_img
+            self.Cutoutspb = self.Cutouts
+            self.Coordspb = self.Coords
         #plt.imshow(self.full_img,vmax=0.01)
         #plt.show()
         #plt.imshow(self.full_pbimg,vmax=0.01)
@@ -216,7 +222,7 @@ Topological Radio Source Finder.
         
         if self.sum_plot == True:
             self._summary_plots()
-        self.catalogue = self.catalogue.apply(lambda row: self._calculate_int_flux(row),axis=1)
+        self.catalogue['Int_flux'] = self.catalogue.apply(lambda row: self._calculate_int_flux(row),axis=1)
         print('TRSF finished.')
         print('Time taken: {} seconds'.format(time.time()-t0))
         print('-------------------')
@@ -285,12 +291,13 @@ Topological Radio Source Finder.
             
         if self.cutup_img == True:
             if pbcorrection == True:
-                print('NOTICE: Image being pbcorrected.')
+                copy_full_img = self._make_square(copy_full_img)
                 if operation == 'divide':
                     print('NOTICE: Image being divided by pbcorrection image.')
               
                     full_img = copy_full_img/norm_imag
                 elif operation == 'multiply':
+                   
                     print('NOTICE: Image being multiplied by pbcorrection image.')
                     copy_full_img = copy_full_img*norm_imag 
 
