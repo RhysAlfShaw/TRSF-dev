@@ -21,7 +21,7 @@ from astropy.stats import mad_std
 
 class cal_props:
 
-    def __init__(self, pd: pandas.DataFrame, img: np.ndarray, local_bg: float, sigma: float, pbimg = None,method: str = None,expsigma: float = 3):
+    def __init__(self, pd: pandas.DataFrame, img: np.ndarray, local_bg: float, sigma: float, pbimg = None,method: str = None,expsigma: float = 3,beam: float = 1):
         self.pd = pd
         self.img = img
         self.local_bg = local_bg
@@ -29,6 +29,7 @@ class cal_props:
         self.method = method
         self.expsigma = expsigma
         self.pbimg = pbimg
+        self.beam = beam
 
     def calculate_bounding_box_of_mask(self,mask):
         '''
@@ -152,7 +153,7 @@ class cal_props:
                 amp, x0, y0, sigma_x, sigma_y, theta = [np.nan,np.nan,np.nan,np.nan,np.nan,np.nan]
             
 
-
+            Beam = self.beam
             # calculate flux here # should be sum(mask*img)
             if self.pbimg is None:
                 Flux_tot_corr = 0
@@ -165,12 +166,13 @@ class cal_props:
                     pbimg = np.resize(self.pbimg, mask.shape)
                 else:
                     pbimg = self.pbimg
-                Flux_tot_corr = np.nansum(mask*pbimg)      # - background
-                Flux_peak_corr = np.nanmax(mask*pbimg)     # - background
+                
+                Flux_tot_corr = np.nansum(mask*pbimg) / Beam     - background
+                Flux_peak_corr = np.nanmax(mask*pbimg) / Beam     - background
                 #print('Corrected Flux {}'.format(Flux_tot_corr))
-            background = mad_std(self.img)
-            Flux_tot = np.sum(mask*self.img) - background 
-            Flux_peak = np.max(mask*self.img) - background
+            background = mad_std(self.img) 
+            Flux_tot = np.sum(mask*self.img) / Beam - background 
+            Flux_peak = np.max(mask*self.img) / Beam - background
             Area = np.sum(mask)
             
             # correct x0 and y0 for the bounding box.

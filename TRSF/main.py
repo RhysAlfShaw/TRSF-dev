@@ -83,6 +83,7 @@ class trsf:
         self.pboperation = pboperation
         #add here where it reads and prints image basic info.
         self._main()
+
     
     def save_catalogue(self, path: str, type: str) -> None:
         self._set_data_types()
@@ -138,6 +139,8 @@ Topological Radio Source Finder.
             self.full_pbimg = self.full_img
             self.Cutoutspb = self.Cutouts
             self.Coordspb = self.Coords
+
+        self.Beam = self.calculate_beam()
         #plt.imshow(self.full_img,vmax=0.01)
         #plt.show()
         #plt.imshow(self.full_pbimg,vmax=0.01)
@@ -227,6 +230,21 @@ Topological Radio Source Finder.
         print('Time taken: {} seconds'.format(time.time()-t0))
         print('-------------------')
     
+    def calculate_beam(self):
+        # get beam info from header
+        header = fits.getheader(self.img_path)
+        BMAJ = header['BMAJ']
+        BMIN = header['BMIN']
+        # convert to pixels
+        arcseconds_per_pixel = header['CDELT1']*3600*-1
+        beam_size_arcseconds = header['BMAJ']*3600
+        BMAJ_oversampled_spacial_width = (BMAJ**2 + beam_size_arcseconds**2)**0.5
+        BMAJ = BMAJ_oversampled_spacial_width/arcseconds_per_pixel
+        BMIN_oversampled_spacial_width = (BMIN**2 + beam_size_arcseconds**2)**0.5
+        BMIN = BMIN_oversampled_spacial_width/arcseconds_per_pixel
+
+        return np.pi * BMAJ*BMIN / (4 * np.log(2))
+
     def _calculate_int_flux(self,row):
 
         x, y = np.meshgrid(np.arange(0, 100, 1), np.arange(0, 100, 1))
@@ -348,7 +366,7 @@ Topological Radio Source Finder.
         return img
 
     def _create_component_catalogue(self,pd,img,local_bg,sigma,pbimg):
-        props = cp.cal_props(pd,img,local_bg,sigma,pbimg=pbimg,method=self.method,expsigma=self.expsigma)
+        props = cp.cal_props(pd,img,local_bg,sigma,pbimg=pbimg,method=self.method,expsigma=self.expsigma,beam=self.Beam)
         source_catalogue = props.fit_all_single_sources(gaussian_fit=self.gaussian_fitting,expand=self.region_expansion)
         return source_catalogue
     
