@@ -15,3 +15,8 @@ figure2.png
 figure3.png
 data/*
 COSMOS1p2_source_example.png
+TRSF_test_cat_sigma3.csv
+.gitignore
+df.csv
+convolved_image.fits
+catalogue.csv

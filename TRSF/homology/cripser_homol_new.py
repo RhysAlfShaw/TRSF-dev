@@ -10,7 +10,7 @@ import numpy as np
 import pandas
 
 
-def compute_ph_cripser(img,local_bg,sigma,maxdim=0,lifetime_limit=0,remove_1pixel=False):
+def compute_ph_cripser(img,local_bg,sigma,maxdim=0,lifetime_limit=0,remove_1pixel=False,lower_cut_threshold=3):
 
     pd = cripser.computePH(-img,maxdim=0)
     pd = pandas.DataFrame(pd,columns=['dim','Birth','Death','x1','y1','z1','x2','y2','z2'],index=range(1,len(pd)+1))
@@ -18,7 +18,7 @@ def compute_ph_cripser(img,local_bg,sigma,maxdim=0,lifetime_limit=0,remove_1pixe
     pd['lifetime'] = pd['Death'] - pd['Birth']
     pd['Birth'] = -pd['Birth'] # negative for max filtration
     pd['Death'] = -pd['Death'] # negative for max filtration
-    pd['Death'] = np.where(pd['Death'] < local_bg*sigma, local_bg*sigma, pd['Death'])
+    pd['Death'] = np.where(pd['Death'] < local_bg*lower_cut_threshold, local_bg*lower_cut_threshold, pd['Death'])
     pd['lifetime'] = abs(pd['Death'] - pd['Birth'])
     
     pd = pd[pd['Birth']>local_bg*sigma]

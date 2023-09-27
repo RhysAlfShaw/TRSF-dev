@@ -6,7 +6,6 @@ date: 30-06-2023
 description: This file contains the functions for turning a processed persistence 
     diagram into a set of sources with properties.
 '''
-from typing import Any
 import numpy as np
 import pandas
 from skimage import measure
@@ -21,7 +20,11 @@ from astropy.stats import mad_std
 
 class cal_props:
 
-    def __init__(self, pd: pandas.DataFrame, img: np.ndarray, local_bg: float, sigma: float, pbimg = None,method: str = None,expsigma: float = 3,beam: float = 1):
+    def __init__(self, pd: pandas.DataFrame, img: np.ndarray, local_bg: float, 
+                 sigma: float, pbimg = None,method: str = None,
+                 expsigma: float = 3,beam: float = 1,
+                 bmajp: float = None, bminp: float = None, bpa: float = None):
+        
         self.pd = pd
         self.img = img
         self.local_bg = local_bg
@@ -30,6 +33,9 @@ class cal_props:
         self.expsigma = expsigma
         self.pbimg = pbimg
         self.beam = beam
+        self.bmajp = bmajp
+        self.bminp = bminp
+        self.bpa = bpa
 
     def calculate_bounding_box_of_mask(self,mask):
         '''
@@ -95,6 +101,8 @@ class cal_props:
         #ss_pd =self.pd[self.pd['single']!=2] # we do not what fit to extended components.   
         ss_pd = self.pd    
         params = []
+        Flux_correction_list = []
+        Flux_tot_before = []
         for i in tqdm(range(len(ss_pd)),total=len(ss_pd),desc='Fitting single sources',leave=False):
             # create mask
             
@@ -112,7 +120,7 @@ class cal_props:
             if gaussian_fit == True:
                 if expand == True:
                     #print('Expanding mask')
-                    mask = self.expand_mask_downhill(mask,max_iter=5)
+                    mask = self.expand_mask_downhill(mask,max_iter=10)
                 bbox = self.calculate_bounding_box_of_mask(mask)
                 
                 
@@ -130,6 +138,7 @@ class cal_props:
                 try:
 
                     amp, x0, y0, sigma_x, sigma_y, theta = self.gaussian_fit(temp_img,regionprops)
+                    
                     # apply correction to x0 and y0 and check for boundaries, or extreamly elliptical fits.
                 except RuntimeError: # we will assign these types of failures to nan.
                     # print the error this is for debugging.
@@ -152,8 +161,17 @@ class cal_props:
                 
                 amp, x0, y0, sigma_x, sigma_y, theta = [np.nan,np.nan,np.nan,np.nan,np.nan,np.nan]
             
+            #calculate int flux
 
             Beam = self.beam
+            # coords where the peak is located.
+            peak_coords = np.where(self.img == regionprops['max_intensity'])
+            #print(peak_coords)
+            y_peak_loc, x_peak_loc = peak_coords[0][0], peak_coords[1][0]
+            Model_Beam = self.model_beam_func(regionprops['max_intensity'],self.img.shape,x_peak_loc,y_peak_loc,self.bmajp/2,self.bminp/2,self.bpa)
+            Flux_correction_factor = self._flux_correction_factor(mask,Model_Beam)
+            #print(Flux_correction_factor)
+            Flux_correction_list.append(Flux_correction_factor)
             # calculate flux here # should be sum(mask*img)
             if self.pbimg is None:
                 Flux_tot_corr = 0
@@ -167,12 +185,20 @@ class cal_props:
                 else:
                     pbimg = self.pbimg
                 
-                Flux_tot_corr = np.nansum(mask*pbimg) / Beam     - background
-                Flux_peak_corr = np.nanmax(mask*pbimg) / Beam     - background
+                Flux_tot_corr = np.nansum(mask*pbimg) / Beam 
+#                if correction == True:
+                #if ss_pd.iloc[i]['single'] == 0:
+                Flux_before = Flux_tot_corr
+                Flux_tot_corr = Flux_tot_corr * Flux_correction_factor
+#                else:
+                #Flux_tot_corr = Flux_tot_corr
+                Flux_peak_corr = np.nanmax(mask*pbimg)      #- background
+            Flux_tot_before.append(Flux_before)
                 #print('Corrected Flux {}'.format(Flux_tot_corr))
             background = mad_std(self.img) 
-            Flux_tot = np.sum(mask*self.img) / Beam - background 
-            Flux_peak = np.max(mask*self.img) / Beam - background
+            Flux_tot = np.sum(mask*self.img) / Beam 
+            Flux_tot = Flux_tot * Flux_correction_factor
+            Flux_peak = np.max(mask*self.img)  #- background
             Area = np.sum(mask)
             
             # correct x0 and y0 for the bounding box.
@@ -187,10 +213,62 @@ class cal_props:
                            bbox,ss_pd.iloc[i]['single'],ss_pd.iloc[i]['Birth'],ss_pd.iloc[i]['Death'],
                            ss_pd.iloc[i]['x1'],ss_pd.iloc[i]['y1'],ss_pd.iloc[i]['lifetime'],Flux_tot,Flux_peak,Flux_peak_corr,Flux_tot_corr,Area])
             
-        
-        return self.create_params_df(params)
+        #print(Flux_correction_list)
+        return self.create_params_df(params), [Flux_correction_list,Flux_tot_before]
     
+    def _flux_correction_factor(self,mask,Model_Beam):
+        # calculate the correction factor
+        model_beam_flux = np.sum(Model_Beam)
+        masked_beam_flux = np.sum(mask*Model_Beam)
+        correction_factor = model_beam_flux/masked_beam_flux
+        #if correction_factor > 100:
+        #    correction_factor = 100
+        return correction_factor
 
+    def model_beam_func(self,peak_flux,shape,x,y,bmaj,bmin,bpa):
+        model_beam = np.zeros(shape)
+        model_beam = self.generate_2d_gaussian(peak_flux,shape,(x,y),bmaj,bmin,bpa,norm=False)
+        return model_beam
+    
+    def generate_2d_gaussian(self,A,shape, center, sigma_x, sigma_y, angle_deg=0,norm=True):
+        """
+        Generate a 2D elliptical Gaussian distribution on a 2D array.
+
+        Parameters:
+            shape (tuple): Shape of the output array (height, width).
+            center (tuple): Center of the Gaussian distribution (x, y).
+            sigma_x (float): Standard deviation along the x-axis.
+            sigma_y (float): Standard deviation along the y-axis.
+            angle_deg (float): Rotation angle in degrees (default is 0).
+
+        Returns:
+            ndarray: 2D array containing the Gaussian distribution.
+        """
+        x, y = np.meshgrid(np.arange(shape[1]), np.arange(shape[0]))
+        x_c, y_c = center
+        angle_rad = np.radians(angle_deg)
+        
+        # Rotate coordinates
+        x_rot = (x - x_c) * np.cos(angle_rad) - (y - y_c) * np.sin(angle_rad)
+        y_rot = (x - x_c) * np.sin(angle_rad) + (y - y_c) * np.cos(angle_rad)
+        
+        # Calculate Gaussian values
+        gaussian = A *np.exp(-(x_rot ** 2 / (2 * sigma_x ** 2) + y_rot ** 2 / (2 * sigma_y ** 2)))
+        
+        if norm:
+            return gaussian / (2 * np.pi * sigma_x * sigma_y) # normalize the gaussian
+        else:
+            return gaussian
+
+
+    def _calculate_int_flux(self,row):
+
+        x, y = np.meshgrid(np.arange(0, 100, 1), np.arange(0, 100, 1))
+        try:
+            gaussian = row.amp * np.exp(-((x-50)**2/(2*row.sigma_x**2) + (y-50)**2/(2*row.sigma_y**2)))
+            return gaussian.sum()
+        except:
+            return row.flux_tot_corr
 
     def _polygon(self,row):
         mask = np.zeros(self.img.shape)
@@ -200,16 +278,17 @@ class cal_props:
         #mask = self.create_source_mask_s(row)
         # create polygon from the mask
         contour = measure.find_contours(mask, 0.5)[0]    
+        background = mad_std(self.pbimg)
         # correct x,y of the contour for the image coords.
-        Flux_tot = np.sum(mask*self.img)
+        Flux_tot = np.sum(mask*self.img) /self.beam  
         Flux_peak = np.max(mask*self.img)
         Area = np.sum(mask)
         if mask.shape != self.pbimg.shape:
             pbimg = np.resize(self.pbimg, mask.shape)
         else:
             pbimg = self.pbimg
-        Flux_tot_corr = np.nansum(mask*pbimg)      # - background
-        Flux_peak_corr = np.nanmax(mask*pbimg)  
+        Flux_tot_corr = np.nansum(mask*pbimg) /self.beam   # - background
+        Flux_peak_corr = np.nanmax(mask*pbimg)            # - background 
         return contour,Flux_tot,Flux_peak,Area,Flux_tot_corr,Flux_peak_corr
 
 

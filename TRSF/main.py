@@ -13,6 +13,7 @@ import pandas
 import matplotlib.pyplot as plt
 from .homology import cripser_homol, cripser_homol_new
 from .source_props import calculate_props as cp
+#from .source_props import calculate_props_alternative as cp
 from tqdm import tqdm
 import time
 import warnings
@@ -58,7 +59,7 @@ class trsf:
                  sigma=None,plot=True,expsigma=3,smoothing=False,smooth_param=1,
                  arrtype=False,arr=None,lifetime_limit=0,remove_1pixel=False,
                  new_algorithm=True,pbcorr_path=None,pbcorr=False,pbimage=False,
-                 pboperation='divide'):
+                 pboperation='divide',lower_cut_threshold=3):
         
         self.img_path = img_path
         self.cutup_img = cutup_img 
@@ -81,6 +82,8 @@ class trsf:
         self.pbcorr = pbcorr
         self.pbimage = pbimage
         self.pboperation = pboperation
+        self.correctionf_list = None
+        self.lower_cut_threshold = lower_cut_threshold
         #add here where it reads and prints image basic info.
         self._main()
 
@@ -132,6 +135,8 @@ Topological Radio Source Finder.
                 self.full_pbimg = self.full_img
                 self.Cutoutspb = self.Cutouts
                 self.Coordspb = self.Coords
+            self.Beam = self.calculate_beam()
+        
         else:
             self.full_img = self.arr
             self.Cutouts = [self.arr]
@@ -139,8 +144,12 @@ Topological Radio Source Finder.
             self.full_pbimg = self.full_img
             self.Cutoutspb = self.Cutouts
             self.Coordspb = self.Coords
-
-        self.Beam = self.calculate_beam()
+            self.Beam = 1
+            self.BMAJp = 0
+            self.BMINp = 0
+            self.BPA = 0
+        
+        #self.Beam = self.calculate_beam()
         #plt.imshow(self.full_img,vmax=0.01)
         #plt.show()
         #plt.imshow(self.full_pbimg,vmax=0.01)
@@ -168,7 +177,7 @@ Topological Radio Source Finder.
                 img[np.isnan(img)] = 0
                 
 
-                pd = self._calculate_persistence_diagrams(img,local_bg,sigma)
+                pd = self._calculate_persistence_diagrams(img,local_bg,sigma,lower_cut_threshold=self.lower_cut_threshold)
                 
                 if len(pd) == 0:
                     continue
@@ -226,6 +235,17 @@ Topological Radio Source Finder.
         if self.sum_plot == True:
             self._summary_plots()
         self.catalogue['Int_flux'] = self.catalogue.apply(lambda row: self._calculate_int_flux(row),axis=1)
+        
+
+        #self.catalogue['Int_flux'] = self.catalogue['Int_flux']/self.Beam
+        # calculate the flux correction factor based on the beam size and how much of it is observed.
+
+        # replace nan in flux_tot_corr with Int_flux/beam
+        #self.catalogue['Int_flux'] = self.catalogue['Int_flux'].fillna(self.catalogue['flux_tot_corr'])
+        # new column called FLUX 
+        #self.catalogue['FLUX'] = self.catalogue['Int_flux']
+        
+
         print('TRSF finished.')
         print('Time taken: {} seconds'.format(time.time()-t0))
         print('-------------------')
@@ -242,17 +262,26 @@ Topological Radio Source Finder.
         BMAJ = BMAJ_oversampled_spacial_width/arcseconds_per_pixel
         BMIN_oversampled_spacial_width = (BMIN**2 + beam_size_arcseconds**2)**0.5
         BMIN = BMIN_oversampled_spacial_width/arcseconds_per_pixel
+        self.BMAJp = BMAJ
+        self.BMINp = BMIN
+        try:
+            self.BPA = header['BPA']
+        except KeyError:
+            self.BPA = 0
+        return np.pi * (BMAJ)*(BMIN) / (4*np.log(2))
 
-        return np.pi * BMAJ*BMIN / (4 * np.log(2))
 
     def _calculate_int_flux(self,row):
-
+        #if row.Class == 0:    
         x, y = np.meshgrid(np.arange(0, 100, 1), np.arange(0, 100, 1))
         try:
             gaussian = row.amp * np.exp(-((x-50)**2/(2*row.sigma_x**2) + (y-50)**2/(2*row.sigma_y**2)))
-            return gaussian.sum()
+            return gaussian.sum()#/self.Beam
         except:
-            return row.flux_tot
+            return row.flux_tot_corr
+        #else:
+         #   return row.flux_tot_corr
+
 
     def _set_data_types(self):
         # set any nan to 0
@@ -337,22 +366,22 @@ Topological Radio Source Finder.
 
 
 
-    def _calculate_persistence_diagrams(self,img,local_bg,sigma):
+    def _calculate_persistence_diagrams(self,img,local_bg,sigma,lower_cut_threshold=3):
         if self.new_algorithm == False:
-
-            pd = cripser_homol.compute_ph_cripser(img,local_bg,sigma,maxdim=0)
+            pd = cripser_homol.compute_ph_cripser(img,local_bg,sigma,maxdim=0,lower_cut_threshold=lower_cut_threshold)
             pd = cripser_homol.apply_confusion_limit(pd,self.confusion_limit)
             if len(pd) == 0:
                 print('Empty persistence diagram. Skipping.')
             else:
-                pd = cripser_homol.ph_precocessing(pd,img,local_bg,sigma)
+                pd = cripser_homol.ph_precocessing(pd,img,local_bg,sigma,lower_cut_threshold=lower_cut_threshold)
                 
                
         elif self.new_algorithm == True:
-            pd = cripser_homol_new.compute_ph_cripser(img,local_bg,sigma,maxdim=0,lifetime_limit=self.lifetime_limit,remove_1pixel=self.remove_1pixel)
+            pd = cripser_homol_new.compute_ph_cripser(img,local_bg,sigma,maxdim=0,lifetime_limit=self.lifetime_limit,remove_1pixel=self.remove_1pixel,lower_cut_threshold=self.lower_cut_threshold)
         
         return pd
     
+
     def _make_square(self,img):
         # make image square by adding padding
         if img.shape[0] > img.shape[1]:
@@ -365,16 +394,25 @@ Topological Radio Source Finder.
             img = np.concatenate((img,pad),axis=0)
         return img
 
+
     def _create_component_catalogue(self,pd,img,local_bg,sigma,pbimg):
-        props = cp.cal_props(pd,img,local_bg,sigma,pbimg=pbimg,method=self.method,expsigma=self.expsigma,beam=self.Beam)
-        source_catalogue = props.fit_all_single_sources(gaussian_fit=self.gaussian_fitting,expand=self.region_expansion)
+        props = cp.cal_props(pd,img,local_bg,sigma,pbimg=pbimg,method=self.method,expsigma=self.expsigma,beam=self.Beam,bmajp=self.BMAJp,bminp=self.BMINp,bpa=self.BPA)
+        source_catalogue, correctionf_list = props.fit_all_single_sources(gaussian_fit=self.gaussian_fitting,expand=self.region_expansion)
+        if self.correctionf_list == None:
+            self.correctionf_list = correctionf_list[0]
+            self.flux_before = correctionf_list[1]
+        else:
+            self.correctionf_list = self.correctionf_list + correctionf_list[0]
+            self.flux_before = self.flux_before + correctionf_list[1]
         return source_catalogue
     
+
     def _crop_image(self,arr):
         arr = np.array(arr)  # Convert input to numpy array
         mask_rows = np.all(np.isnan(arr), axis=1)
         mask_cols = np.all(np.isnan(arr), axis=0)
         return arr[~mask_rows][:, ~mask_cols]
+
 
     def _summary_plots(self):
         # plot image with source locations
@@ -392,6 +430,7 @@ Topological Radio Source Finder.
         plt.legend()
         plt.show()
     
+
     def _image_smoothing(self,img,smooth_param):
         # import gaussian filter
         from scipy.ndimage import gaussian_filter
