@@ -20,6 +20,10 @@ import warnings
 from astropy.io import fits
 from astropy.table import Table
 
+
+
+
+
 class trsf:
     '''
     Main class for TRSF. This class will take an image and calculate the persistence diagrams and source properties.
@@ -61,6 +65,12 @@ class trsf:
                  new_algorithm=True,pbcorr_path=None,pbcorr=False,pbimage=False,
                  pboperation='divide',lower_cut_threshold=3):
         
+        '''
+        Initialises the source finder and defines object information relavent for each call.
+
+        Runs the main function, so it run in initalisaiton.
+        '''
+
         self.img_path = img_path
         self.cutup_img = cutup_img 
         self.cutup_img_size = cutup_img_size
@@ -89,6 +99,17 @@ class trsf:
 
     
     def save_catalogue(self, path: str, type: str) -> None:
+        '''
+        
+        Saves the catalogue to various datatypes.
+
+        args:
+            path - path of the file to be written to.
+            type - the file format.
+
+        returns None
+
+        '''
         self._set_data_types()
         if type == 'csv':
             self.catalogue.to_csv(path)
@@ -106,7 +127,13 @@ class trsf:
 
 
     def _main(self):
-        # suppress all warnings THESE SHOULD BE FIXED. 
+
+        '''
+
+        Main loop that calculates the source properties for each source in each cutout.
+
+        '''
+
         warnings.filterwarnings("ignore")
         t0 = time.time()
         print("""   
@@ -149,13 +176,8 @@ Topological Radio Source Finder.
             self.BMINp = 0
             self.BPA = 0
         
-        #self.Beam = self.calculate_beam()
-        #plt.imshow(self.full_img,vmax=0.01)
-        #plt.show()
-        #plt.imshow(self.full_pbimg,vmax=0.01)
-        #plt.show()    
         print('Calculating persistence diagrams and source properties..')
-        #self.full_img[np.isnan(self.full_img)] = 0
+
         counter = 0
         for num, img in tqdm(enumerate(self.Cutouts),total=len(self.Cutouts),desc='Cutouts Completed'):
             
@@ -235,22 +257,21 @@ Topological Radio Source Finder.
         if self.sum_plot == True:
             self._summary_plots()
         self.catalogue['Int_flux'] = self.catalogue.apply(lambda row: self._calculate_int_flux(row),axis=1)
-        
-
-        #self.catalogue['Int_flux'] = self.catalogue['Int_flux']/self.Beam
-        # calculate the flux correction factor based on the beam size and how much of it is observed.
-
-        # replace nan in flux_tot_corr with Int_flux/beam
-        #self.catalogue['Int_flux'] = self.catalogue['Int_flux'].fillna(self.catalogue['flux_tot_corr'])
-        # new column called FLUX 
-        #self.catalogue['FLUX'] = self.catalogue['Int_flux']
-        
 
         print('TRSF finished.')
         print('Time taken: {} seconds'.format(time.time()-t0))
         print('-------------------')
     
     def calculate_beam(self):
+        '''
+
+        Calculates the beam of the image in pixels.
+
+        returns:
+            beam sampling factor, and creates object variable BMAJp and BMINp.
+        
+        '''
+        
         # get beam info from header
         header = fits.getheader(self.img_path)
         BMAJ = header['BMAJ']
@@ -272,6 +293,11 @@ Topological Radio Source Finder.
 
 
     def _calculate_int_flux(self,row):
+        '''
+        
+        Calculates the intergrated flux of the modelled gaussian source.
+
+        '''
         #if row.Class == 0:    
         x, y = np.meshgrid(np.arange(0, 100, 1), np.arange(0, 100, 1))
         try:
@@ -284,6 +310,9 @@ Topological Radio Source Finder.
 
 
     def _set_data_types(self):
+        '''
+        Sets the types for the dataframe.
+        '''
         # set any nan to 0
         self.catalogue = self.catalogue.fillna(0)
         self.catalogue['index'] = self.catalogue['index'].astype(int)
@@ -309,9 +338,14 @@ Topological Radio Source Finder.
         self.catalogue['encloses_i'] = self.catalogue['encloses_i'].astype(str)
 
 
-
-
     def _open_img(self,img_path,pbcorrection=False,norm_imag=None,operation='divide'):
+        
+        '''
+
+        Opens the specified image file and does any needed processing such as removing boarders and nan areas.
+        
+        '''
+        
         full_img = preprocessing.preprocess(img_path,formatting=True).img 
         print('NOTICE: Input Image Size {}'.format(full_img.shape))
         full_img = self._crop_image(full_img)
@@ -360,6 +394,10 @@ Topological Radio Source Finder.
 
 
     def _background_estimate(self,img):
+        '''
+        This function calcuates the background of the image cutout using the homology distrbution.
+        # depreciated.
+        '''
         local_bg, sigma = estimate_image_local_bg.estimate_bg_from_homology(img)
         return local_bg, sigma
 
@@ -367,6 +405,15 @@ Topological Radio Source Finder.
 
 
     def _calculate_persistence_diagrams(self,img,local_bg,sigma,lower_cut_threshold=3):
+
+        '''
+
+        Calculate the persistence diagrams for the image cutout. Calls other file with functions.
+
+
+        '''
+
+
         if self.new_algorithm == False:
             pd = cripser_homol.compute_ph_cripser(img,local_bg,sigma,maxdim=0,lower_cut_threshold=lower_cut_threshold)
             pd = cripser_homol.apply_confusion_limit(pd,self.confusion_limit)
@@ -383,7 +430,13 @@ Topological Radio Source Finder.
     
 
     def _make_square(self,img):
-        # make image square by adding padding
+        
+        '''
+        
+        Makes the image square by adding padding in the necessary dimension.
+
+        '''
+        
         if img.shape[0] > img.shape[1]:
             diff = img.shape[0] - img.shape[1]
             pad = np.zeros((img.shape[0],diff))
@@ -396,6 +449,9 @@ Topological Radio Source Finder.
 
 
     def _create_component_catalogue(self,pd,img,local_bg,sigma,pbimg):
+
+        ''' Calls the source props functions to generate the source catalogue for each cutout given the results of the persistent diagram.'''
+        
         props = cp.cal_props(pd,img,local_bg,sigma,pbimg=pbimg,method=self.method,expsigma=self.expsigma,beam=self.Beam,bmajp=self.BMAJp,bminp=self.BMINp,bpa=self.BPA)
         source_catalogue, correctionf_list = props.fit_all_single_sources(gaussian_fit=self.gaussian_fitting,expand=self.region_expansion)
         if self.correctionf_list == None:
@@ -408,6 +464,13 @@ Topological Radio Source Finder.
     
 
     def _crop_image(self,arr):
+        
+        '''
+        
+        Crops the image of nan values.
+
+        '''
+
         arr = np.array(arr)  # Convert input to numpy array
         mask_rows = np.all(np.isnan(arr), axis=1)
         mask_cols = np.all(np.isnan(arr), axis=0)
@@ -415,6 +478,13 @@ Topological Radio Source Finder.
 
 
     def _summary_plots(self):
+        
+        '''
+        
+        Allows for plots of results to be produced after source finding.
+
+        '''
+        
         # plot image with source locations
         plt.figure(figsize=(8,8))
         plt.imshow(self.full_img,vmax=np.nanpercentile(self.full_img,95),vmin=np.nanpercentile(self.full_img,0.1))
@@ -432,6 +502,13 @@ Topological Radio Source Finder.
     
 
     def _image_smoothing(self,img,smooth_param):
+        
+        '''
+        
+        Applies a Gaussian filter to the image to smooth it as desired.
+
+        '''
+        
         # import gaussian filter
         from scipy.ndimage import gaussian_filter
         # smooth image

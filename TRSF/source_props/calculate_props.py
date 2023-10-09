@@ -19,7 +19,24 @@ import skimage.measure as measure
 from astropy.stats import mad_std
 
 class cal_props:
+    
+    '''
 
+    Calculates source properties for each given image.
+
+    Args:
+        - Persistent Diagram (pandas.DataFrame).
+        - Image (numpy array).
+        - Local bg (float). 
+    
+    Returns:
+        - 
+
+
+    
+    '''
+    
+    
     def __init__(self, pd: pandas.DataFrame, img: np.ndarray, local_bg: float, 
                  sigma: float, pbimg = None,method: str = None,
                  expsigma: float = 3,beam: float = 1,
@@ -216,6 +233,7 @@ class cal_props:
         #print(Flux_correction_list)
         return self.create_params_df(params), [Flux_correction_list,Flux_tot_before]
     
+
     def _flux_correction_factor(self,mask,Model_Beam):
         # calculate the correction factor
         model_beam_flux = np.sum(Model_Beam)
@@ -293,8 +311,11 @@ class cal_props:
 
 
     def create_params_df(self,params):
+
         '''
+        
         Creates a pandas dataframe from the parameters.
+        
         '''
         
         params = pandas.DataFrame(params,columns=['index','amp','x','y','sigma_x','sigma_y','theta','peak_flux','x_c','y_c','bbox','Class','Birth','Death','x1','y1','lifetime','flux_tot','flux_peak','flux_peak_corr','flux_tot_corr','area'])
@@ -328,8 +349,11 @@ class cal_props:
         pass
     
     def fit_param_check(self,bbox,params):
+
         '''
+        
         Checks the fitting parameters for any issues.
+        
         '''
 
         amp, x0, y0, sigma_x, sigma_y, theta = params
@@ -364,13 +388,24 @@ class cal_props:
         return region
     
     def expand_mask_downhill(self,mask,max_iter=3):
+
+        '''
+
+        Expansion of the regions using the region_expansion_downhill 
+        
+        '''
+        
         mask = region_expansion_downhill(mask,self.img,self.local_bg*self.expsigma,method=self.method,max_iter=max_iter)
         return mask
     
     def props_to_dict(self,regionprops):
+
         '''
+        
         Converts the regionprops to a dictionary.
+        
         '''
+        
         dict = {
             'area': regionprops.area,
             'bbox': regionprops.bbox,
@@ -405,8 +440,11 @@ class cal_props:
         return mask
     
     def create_source_mask(self, idx, pd):
+        
         '''
         
+        Creates source for each of the source finder.
+
         '''
         
         point = pd.iloc[idx]
@@ -417,8 +455,11 @@ class cal_props:
         return mask
 
     def get_enclosing_mask(self,x, y, mask):
+        
         '''
+        
         Returns the mask of the enclosed area of the point (x,y) in the mask.
+        
         '''
         
         # Ensure the point is inside the mask
