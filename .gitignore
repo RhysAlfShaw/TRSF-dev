@@ -1,14 +1,11 @@
 *.pyc
-TRSF/source_props/region_expansion.cpython-39-darwin.so
 TRSF/source_props/region_expansion.html
 TRSF/source_props/region_expansion.c
-TRSF/source_props/build/temp.macosx-11.0-arm64-cpython-39/region_expansion.o
-TRSF/source_props/build/lib.macosx-11.0-arm64-cpython-39/region_expansion.cpython-39-darwin.so
-TRSF/source_props/region_expansion.cpython-39-darwin.so
-TRSF/source_props/build/lib.macosx-11.0-arm64-cpython-39/region_expansion.cpython-39-darwin.so
-TRSF/.DS_Store
-TRSF/source_props/build/temp.macosx-11.0-arm64-cpython-39/region_expansion.o
 TRSF/source_props/region_expansion.c
+.DS_Store
+*.o
+*.so
+*.dylib
 profiling_code.ipynb
 test.ipynb
 figure2.png
@@ -16,7 +13,6 @@ figure3.png
 data/*
 COSMOS1p2_source_example.png
 TRSF_test_cat_sigma3.csv
-.gitignore
 df.csv
 convolved_image.fits
 catalogue.csv
