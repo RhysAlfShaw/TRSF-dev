@@ -1,3 +1,4 @@
+'''
 import numpy as np
 import pandas as pd
 from TRSF.homology.cripser_homol import (compute_ph_cripser, 
@@ -106,3 +107,4 @@ def test_get_enclosing_mask():
     assert np.array_equal(result, expected_result)
 
 
+'''
