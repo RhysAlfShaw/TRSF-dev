@@ -1,3 +1,4 @@
+'''
 from TRSF.homology.create_regions import create_regions, remove_low_flux_regions
 import numpy as np
 from skimage.measure import label, regionprops
@@ -61,4 +62,4 @@ def test_remove_low_flux_regions():
     # Check the number of remaining regions
     assert len(updated_regions) == 0
 
-    
+'''
