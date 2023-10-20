@@ -42,16 +42,29 @@ This is a pointing centered on Galaxy Cluster A3158 at 55.73deg -53.63deg (R.A |
 from TRSF import sf
 import numpy as np
 import matplotlib.pylab as plt
+from astropy.io import fits
 
 File_Path = 'Xray_observation.fits'
+
+# open data
+hdulist = fits.open(Data_Path)
+
+# crop the nans from the image (not always present in your image)
+data = hdulist[0].data[~np.isnan(hdulist[0].data).all(axis=1)]
+data = data[:,~np.isnan(data).all(axis=0)]
+
+# apply some smoothing by covolving the image with a gaussian kernal.
+
+from scipy.ndimage.filters import gaussian_filter
+data_not_smoothed = np.copy(data)
+data = gaussian_filter(data, sigma=3)
+
 # initialise the source finder instance with your file path, and type of image.
-findmysources = sf(image=None,image_PATH=File_PATH,pb_PATH=None,mode='X-ray')
+findmysources = sf(image=None,image_PATH=File_PATH,pb_PATH=None,mode='other')
 # calculate background statistics relevent for you image.
-fimdmysources.set_background(detection_threshold=5)
+fimdmysources.set_background(detection_threshold=1,set_bg=2)
 # find the topological features.
 findmysources.phsf()
-# measure properties for your features (currently only for radio).
-findmysources.source_charateristing()
 # Create a list of polygons defining the regions of sources found by phsf().
 findmysources.create_polygons()
 # read from the object the catalogue and polygons.
