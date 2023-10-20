@@ -10,6 +10,6 @@ TRSF/source_props/region_expansion.c
 *.fits
 *.npy
 *.csv
-*.png
+/data/figures/*
 *.ipynb
 *.svg
