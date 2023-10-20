@@ -6,13 +6,14 @@
 [TRSF-dev GitHub Repository](https://github.com/RhysAlfShaw/TRSF-dev)
 
 
-Currently in development tool, a genarl tool for astronomers to find sources, returning a catalogue and list of componet polygons that the sources were extracted from. 
+Currently in development, a general tool for astronomers to find sources, returning a catalogue and list of component polygons that the sources were extracted from. 
 
-This source finder uses Persistent Homology to find peaks, saddle points and define components of source islands. 
+This source finder uses Persistent Homology to find peaks, saddle points and define components of source islands.
 
 To calculate the persistent homology of the input images we use the code ```cripser``` by Shizuo Kaji [cripser](https://github.com/RhysAlfShaw/CubicalRipser_3dim). 
 
 ## Warning 
+
 This repository is actively in development and is susceptible to regular and breaking changes.
 
 # To use
