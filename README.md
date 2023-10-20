@@ -60,7 +60,7 @@ data_not_smoothed = np.copy(data)
 data = gaussian_filter(data, sigma=3)
 
 # initialise the source finder instance with your file path, and type of image.
-findmysources = sf(image=None,image_PATH=File_PATH,pb_PATH=None,mode='other')
+findmysources = sf(image=data,image_PATH=None,pb_PATH=None,mode='other')
 # calculate background statistics relevent for you image.
 fimdmysources.set_background(detection_threshold=1,set_bg=2)
 # find the topological features.
