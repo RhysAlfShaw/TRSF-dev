@@ -151,7 +151,7 @@ class sf:
         self.catalogue['Flux_total'] = self.catalogue['Flux_total'].astype(float)
         self.catalogue['Flux_peak'] = self.catalogue['Flux_peak'].astype(float)
         self.catalogue['Corr_f'] = self.catalogue['Corr_f'].astype(float)
-        self.catalogue['Area'] = self.catalogue['Area'].astype(int)
+        self.catalogue['Area'] = self.catalogue['Area'].astype(float)
         self.catalogue['Xc'] = self.catalogue['Xc'].astype(float)
         self.catalogue['Yc'] = self.catalogue['Yc'].astype(float)
         self.catalogue['bbox1'] = self.catalogue['bbox1'].astype(float)
@@ -161,10 +161,10 @@ class sf:
         self.catalogue['Maj'] = self.catalogue['Maj'].astype(float)
         self.catalogue['Min'] = self.catalogue['Min'].astype(float)
         self.catalogue['Pa'] = self.catalogue['Pa'].astype(float)
-        self.catalogue['parent_tag'] = self.catalogue['parent_tag'].astype(int)
-        self.catalogue['Class'] = self.catalogue['Class'].astype(int)
-        self.catalogue['Y0_cutout'] = self.catalogue['Y0_cutout'].astype(int)
-        self.catalogue['X0_cutout'] = self.catalogue['X0_cutout'].astype(int)
+        self.catalogue['parent_tag'] = self.catalogue['parent_tag'].astype(float)
+        self.catalogue['Class'] = self.catalogue['Class'].astype(float)
+        self.catalogue['Y0_cutout'] = self.catalogue['Y0_cutout'].astype(float)
+        self.catalogue['X0_cutout'] = self.catalogue['X0_cutout'].astype(float)
 
 
 
@@ -346,7 +346,7 @@ class sf:
             for polygon in self.polygons:
                 f.write('polygon(')
                 for i, point in enumerate(polygon):
-                    f.write('{:.2f},{:.2f}'.format(point[1]+1, point[0]+1)) # note this transformation as the index in some CARTA inmages start at -1.
+                    f.write('{:.2f},{:.2f}'.format(point[1], point[0])) # note this transformation as the index in some CARTA inmages start at -1.
                     if i < len(polygon) - 1:
                         f.write(',')
                 f.write(')\n')
@@ -543,7 +543,7 @@ class sf:
 
 
     def _get_polygons_in_bbox(self,Xmin,Xmax,Ymin,Ymax,x1,y1,birth,death):
-        image_crop = self.image[Ymin:Ymax,Xmin:Xmax]
+        image_crop = self.image[int(Ymin):int(Ymax),int(Xmin):int(Xmax)]
 
         mask = np.zeros_like(image_crop)
         mask = np.logical_or(mask,np.logical_and(image_crop <= birth,image_crop > death))
