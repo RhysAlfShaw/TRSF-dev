@@ -36,11 +36,11 @@ def classify_single(row):
 
 
 
-def correct_first_destruction(pd):
+def correct_first_destruction(pd,output):
 
     pd['new_row'] = 0
 
-    for i in tqdm(range(0,len(pd)),total=len(pd),desc='Correcting first destruction'):
+    for i in tqdm(range(0,len(pd)),total=len(pd),desc='Correcting first destruction',disable=output):
 
         row = pd.iloc[i]
         
@@ -129,7 +129,7 @@ def get_mask(row, img):
 
 
 
-def compute_ph_components(img,local_bg,lifetime_limit=0):
+def compute_ph_components(img,local_bg,lifetime_limit=0,output=True):
     pd = cripser.computePH(-img,maxdim=0)
     pd = pandas.DataFrame(pd,columns=['dim','Birth','Death','x1','y1','z1','x2','y2','z2'],index=range(1,len(pd)+1))
     pd.drop(columns=['dim','z1','z2'],inplace=True)
@@ -139,7 +139,7 @@ def compute_ph_components(img,local_bg,lifetime_limit=0):
     pd['Death'] = np.where(pd['Death'] < local_bg, local_bg, pd['Death'])
     pd['lifetime'] = abs(pd['Death'] - pd['Birth'])
     
-    pd = pd[pd['Birth']>local_bg]
+    pd = pd[pd['Birth']>local_bg] # maybe this should be at the beginning.
     
     print('Persis Diagram computed. Length: ',len(pd))
 
@@ -152,7 +152,7 @@ def compute_ph_components(img,local_bg,lifetime_limit=0):
     if len(pd) > 0:
 
         area_list = []
-        for i in tqdm(range(0,len(pd)),total=len(pd),desc='Calculating area'):
+        for i in tqdm(range(0,len(pd)),total=len(pd),desc='Calculating area',disable=not output):
             area = calculate_area(pd.iloc[i],img)
             area_list.append(area)
 
@@ -161,7 +161,7 @@ def compute_ph_components(img,local_bg,lifetime_limit=0):
         pd = pd[pd['area'] > 1] # remove 1 pixel points
         
         enclosed_i_list = []
-        for index, row in tqdm(pd.iterrows(),total=len(pd),desc='Making point assoc'):
+        for index, row in tqdm(pd.iterrows(),total=len(pd),desc='Making point assoc',disable=not output):
             enclosed_i = make_point_enclosure_assoc(row,pd,img)
             enclosed_i_list.append(enclosed_i)
         pd['enclosed_i'] = enclosed_i_list
@@ -170,7 +170,7 @@ def compute_ph_components(img,local_bg,lifetime_limit=0):
 
         # DROP ROW WITH AREA OF 1
         
-        pd = correct_first_destruction(pd) 
+        pd = correct_first_destruction(pd,output=not output) 
         
         pd['parent_tag'] = pd.apply(lambda row: parent_tag_func(row,pd), axis=1)
         pd['Class'] = pd.apply(classify_single,axis=1)

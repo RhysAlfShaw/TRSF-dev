@@ -23,8 +23,11 @@ class sf:
     
 
 
-    def __init__(self,image,image_PATH,mode,pb_PATH=None):
-
+    def __init__(self,image,image_PATH,mode,pb_PATH=None,cutup=False,cutup_size=500,output=True):
+        
+        print('Initialising Source Finder..')
+        self.cutup = cutup
+        self.output = output
         self.image_PATH = image_PATH
         if image_PATH is None:
             self.image = image
@@ -37,22 +40,100 @@ class sf:
         if self.pb_PATH is not None:
             self.pb_image = self.open_pb()
 
+        if self.cutup:
+            # cut the image into sizes of 500x500 pixels.
+            # will need to correct the x1,y1,x2,y2 values in the catalogue. accordingly for the cutup. 
+            # when calculating source_characteristics
+            self.cutouts, self.coords = self.cut_image(cutup_size,self.image)
+        
+            # if we have a pb image, we need to cut that up too.
+            if self.pb_PATH is not None:
+                self.pb_cutouts, self.pb_coords = self.cut_image(cutup_size,self.pb_image)
+                
+        print('Done.')    
+            
+            
+    def cut_image(self,size,image):
+        # return a list of cutouts of the image. and coords of the cutout
 
+        cutouts = []
+        coords = []
+        for i in range(0,image.shape[0],size):
+            for j in range(0,image.shape[1],size):
+                # Create a cutout
+                cutout = image[i:i+size,j:j+size]
+                # Append the cutout to the list
+                cutouts.append(cutout)
+                # Append the coordinates to the list
+                coords.append((i,j))
+        
+        return cutouts, coords
 
 
     def phsf(self,lifetime_limit=0):
 
-        self.catalogue = compute_ph_components(self.image,self.local_bg,lifetime_limit=lifetime_limit)
+        if self.cutup == True:
+            
+            # loop over all cutouts
+            catalogue_list = []
+            for i, cutout in enumerate(self.cutouts):
+                
+                print('Computing for Cutout number : {}/{}'.format(i,len(self.cutouts)))
+                catalogue = compute_ph_components(cutout,self.local_bg[i],lifetime_limit=lifetime_limit,output=self.output)
+                # add cutout coords to catalogue
+                catalogue['Y0_cutout'] = self.coords[i][0]
+                catalogue['X0_cutout'] = self.coords[i][1]
+                catalogue_list.append(catalogue)
+            
+            # combine the catalogues
+            self.catalogue = pandas.concat(catalogue_list)
+                
+        else:   
+        
+            self.catalogue = compute_ph_components(self.image,self.local_bg,lifetime_limit=lifetime_limit,output=self.output)
 
 
 
 
-    def source_characteristing(self):
+    def source_characterising(self):
 
         if self.mode == 'Radio':
             # need to read beam size from fits header
-            # 
-            self.radio_characteristing()
+        
+            
+            
+            if self.cutup:
+                for i, cutout in enumerate(self.cutouts):
+                    
+                    cutout_cat = self.catalogue[(self.catalogue['Y0_cutout'] == self.coords[i][0]) & (self.catalogue['X0_cutout'] == self.coords[i][1])]
+                    
+                    Cutout_catalogue = self.radio_characteristing(catalogue=cutout_cat,cutout=cutout,cutout_pb=self.pb_cutouts[i])  
+                    # add cutout coords to catalogue
+                    Cutout_catalogue['Y0_cutout'] = self.coords[i][0] # these get removed in the previous function.
+                    Cutout_catalogue['X0_cutout'] = self.coords[i][1]
+                    if i == 0:
+                        Processed_catalogue = Cutout_catalogue
+                    else:
+                        Processed_catalogue = pandas.concat([Processed_catalogue,Cutout_catalogue])
+                self.catalogue = Processed_catalogue
+                # correct for the poistion of the cutout.
+                
+                self.catalogue['y1'] = self.catalogue['y1'] + self.catalogue['X0_cutout']
+                self.catalogue['y2'] = self.catalogue['y2'] + self.catalogue['X0_cutout']
+                self.catalogue['x1'] = self.catalogue['x1'] + self.catalogue['Y0_cutout']
+                self.catalogue['x2'] = self.catalogue['x2'] + self.catalogue['Y0_cutout']
+                self.catalogue['Xc'] = self.catalogue['Xc'] + self.catalogue['X0_cutout']
+                self.catalogue['Yc'] = self.catalogue['Yc'] + self.catalogue['Y0_cutout']
+                self.catalogue['bbox1'] = self.catalogue['bbox1'] + self.catalogue['Y0_cutout'] - 1
+                self.catalogue['bbox2'] = self.catalogue['bbox2'] + self.catalogue['X0_cutout'] - 1
+                self.catalogue['bbox3'] = self.catalogue['bbox3'] + self.catalogue['Y0_cutout']
+                self.catalogue['bbox4'] = self.catalogue['bbox4'] + self.catalogue['X0_cutout']
+                
+                # add cutout coords to catalogue
+            
+            else:
+                self.radio_characteristing()
+                
 
 
 
@@ -75,12 +156,21 @@ class sf:
 
 
 
-    def radio_characteristing(self):
+    def radio_characteristing(self,catalogue=None,cutout=None,cutout_pb=None):
 
         # get beam in pixels
         
-        self.Beam = self.calculate_beam()
-
+        if cutout is None:
+            self.Beam = self.calculate_beam()
+            catalogue = self.catalogue
+            image = self.image
+            pb_image = self.pb_image
+        
+            
+        else:
+            self.Beam = self.calculate_beam()
+            image = cutout
+            pb_image = cutout_pb
         
         # for each source in the catalogue create mask and measure properties. prephorm source flux correction.
         
@@ -88,23 +178,23 @@ class sf:
         
         params = []
 
-        for i, source in tqdm(self.catalogue.iterrows(),total=len(self.catalogue),desc='Calculating Source Properties..'):
-
-            mask = self.get_mask(row=source)
+        for i, source in tqdm(catalogue.iterrows(),total=len(catalogue),desc='Calculating Source Properties..',disable=not self.output):
+            
+            mask = self.get_mask(row=source,image=image)
             #print(np.sum(mask))
             #plt.imshow(mask)
             #plt.show()
         
-            source_props = self.get_region_props(mask)
+            source_props = self.get_region_props(mask,image=image)
             
             source_props = self.props_to_dict(source_props[0])
 
-            peak_coords = np.where(self.image == source_props['max_intensity'])
+            peak_coords = np.where(image == source_props['max_intensity'])
 
             y_peak_loc = peak_coords[0][0]
             x_peak_loc = peak_coords[1][0]
 
-            Model_Beam = self.model_beam_func(source_props['max_intensity'],self.image.shape,x_peak_loc,y_peak_loc,self.BMAJp,self.BMINp,self.BPA)
+            Model_Beam = self.model_beam_func(source_props['max_intensity'],image.shape,x_peak_loc,y_peak_loc,self.BMAJp,self.BMINp,self.BPA)
             Flux_correction_factor = self._flux_correction_factor(mask, Model_Beam)
 
             self.flux_correction_list.append(Flux_correction_factor)
@@ -112,13 +202,13 @@ class sf:
             # calculate the flux of the source with option for pb correction.
             if self.pb_PATH is not None:
                 
-                Flux_total = np.nansum(mask*self.pb_image)/self.Beam
-                Flux_peak = np.nanmax(mask*self.pb_image)
+                Flux_total = np.nansum(mask*image/pb_image)/self.Beam   # may need to be altered for universality.
+                Flux_peak = np.nanmax(mask*image/pb_image)              # may need to be altered for universality.
                 
             else:
 
-                Flux_total = np.nansum(mask*self.image)/self.Beam
-                Flux_peak = np.nanmax(mask*self.image)
+                Flux_total = np.nansum(mask*image)/self.Beam
+                Flux_peak = np.nanmax(mask*image)
             
             Flux_total = Flux_total*Flux_correction_factor
             Area = np.sum(mask)
@@ -157,8 +247,13 @@ class sf:
                            Pa,
                            source.parent_tag,
                            source.Class])
-            
-        self.create_params_df(params)
+        if self.cutup:   
+            cutup_Catalogue = self.create_params_df(params)
+            return cutup_Catalogue
+        else:
+            self.create_params_df(params)
+        
+
     
 
 
@@ -195,14 +290,16 @@ class sf:
                                                   'parent_tag',
                                                   'Class'])
        
+        if self.cutup:
+            return params
+        
+        else:
+            self.catalogue = params
 
-        self.catalogue = params
 
 
-
-
-    def get_region_props(self,mask):
-        region = measure.regionprops(mask,self.image)
+    def get_region_props(self,mask,image):
+        region = measure.regionprops(mask,image)
         return region
     
     def save_polygons_to_ds9(self, filename):
@@ -224,9 +321,10 @@ class sf:
 
 
 
-    def get_mask(self,row):
-        mask = np.zeros(self.image.shape)
-        mask = np.logical_or(mask,np.logical_and(self.image <= row.Birth, self.image > row.Death))
+    def get_mask(self,row,image):
+        
+        mask = np.zeros(image.shape)
+        mask = np.logical_or(mask,np.logical_and(image <= row.Birth, image > row.Death))
         mask_enclosed = self.get_enclosing_mask(int(row.y1),int(row.x1),mask)
         # set mask as integer
         mask_enclosed = mask_enclosed.astype(int)
@@ -385,6 +483,7 @@ class sf:
 
 
     def _get_polygons(self,x1,y1,birth,death):
+        
         '''
         Returns the polygon of the enclosed area of the point (x,y) in the mask.
         '''
@@ -403,12 +502,41 @@ class sf:
         
         polygons = []
         for index, row in tqdm(self.catalogue.iterrows(),total=len(self.catalogue),desc='Creating polygons'):
-            contour = self._get_polygons(row.x1,row.y1,row.Birth,row.Death)
-            polygons.append(contour)
-
+            try:
+                contour = self._get_polygons(row.x1,row.y1,row.Birth,row.Death)
+                polygons.append(contour)
+            except:
+                continue
         self.polygons = polygons
+        
+        
+    def _get_polygons_in_bbox(self,Xmin,Xmax,Ymin,Ymax,x1,y1,birth,death):
+        image_crop = self.image[Ymin:Ymax,Xmin:Xmax]
+    
+        mask = np.zeros_like(image_crop)
+        mask = np.logical_or(mask,np.logical_and(image_crop <= birth,image_crop > death))
+        mask = self.get_enclosing_mask(int(y1-Xmin),int(x1-Ymin),mask)
+        contour = measure.find_contours(mask, 0)[0]
+        
+        # correct the coordinates to the original image
+        contour[:,0] += Ymin
+        contour[:,1] += Xmin
+        # plot the contour on the original image
+
+        return contour  
+  
+        
 
 
+    def create_polygons_fast(self):
+        # since we have a bounding box, we can just create a polygon in the bounding box.
+        polygons = []
+        for index, row in tqdm(self.catalogue.iterrows(),total=len(self.catalogue),desc='Creating polygons'):
+            contour = self._get_polygons_in_bbox(row.bbox2-10,row.bbox4+10,row.bbox1-10,row.bbox3+10,row.x1,row.y1,row.Birth,row.Death)
+            polygons.append(contour)
+        
+        self.polygons = polygons
+            
 
     def set_background(self,detection_threshold,set_bg=None):
         
@@ -416,11 +544,23 @@ class sf:
 
         if self.mode == 'Radio':
             
-            # Radio background is calculated using the median absolute deviation of the total image.
+            if self.cutup:
+                
+                # loop though each cutout and calculate the local background.
+                
+                local_bg_list = []
+                for cutout in self.cutouts:
+                    local_bg = self.radio_background(cutout)
+                    local_bg_list.append(local_bg*self.sigma)
+                local_bg = local_bg_list
+            else:
+                
+                # Radio background is calculated using the median absolute deviation of the total image.
 
-            local_bg = self.radio_background()
-            local_bg = local_bg*self.sigma
-        
+                local_bg = self.radio_background(self.image)
+                local_bg = local_bg*self.sigma
+            
+            
         if self.mode == 'Optical':
             # Optical background is calculated using a random sample of pixels
             mean_bg, std_bg = self.optical_background(nsamples=1000)
@@ -436,16 +576,19 @@ class sf:
             local_bg = set_bg
         
         self.local_bg = local_bg
-        print('Background set to: ',self.local_bg)
+        if self.cutup:
+            print('Mean Background across cutouts: ', np.nanmean(self.local_bg))
+        else:
+            print('Background set to: ',self.local_bg)
 
 
 
 
-    def radio_background(self):
+    def radio_background(self,image):
         
         from astropy.stats import mad_std
 
-        local_bg = mad_std(self.image,ignore_nan=True)
+        local_bg = mad_std(image,ignore_nan=True)
         
         return local_bg
     
