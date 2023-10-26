@@ -129,14 +129,14 @@ def get_mask(row, img):
 
 
 
-def compute_ph_components(img,local_bg,lifetime_limit=0,output=True):
+def compute_ph_components(img,local_bg,analysis_threshold_val,lifetime_limit=0,output=True):
     pd = cripser.computePH(-img,maxdim=0)
     pd = pandas.DataFrame(pd,columns=['dim','Birth','Death','x1','y1','z1','x2','y2','z2'],index=range(1,len(pd)+1))
     pd.drop(columns=['dim','z1','z2'],inplace=True)
     pd['lifetime'] = pd['Death'] - pd['Birth']
     pd['Birth'] = -pd['Birth'] 
     pd['Death'] = -pd['Death'] 
-    pd['Death'] = np.where(pd['Death'] < local_bg, local_bg, pd['Death'])
+    pd['Death'] = np.where(pd['Death'] < analysis_threshold_val, analysis_threshold_val, pd['Death'])
     pd['lifetime'] = abs(pd['Death'] - pd['Birth'])
     
     pd = pd[pd['Birth']>local_bg] # maybe this should be at the beginning.

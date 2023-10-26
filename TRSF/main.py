@@ -82,7 +82,7 @@ class sf:
             for i, cutout in enumerate(self.cutouts):
 
                 print('Computing for Cutout number : {}/{}'.format(i,len(self.cutouts)))
-                catalogue = compute_ph_components(cutout,self.local_bg[i],lifetime_limit=lifetime_limit,output=self.output)
+                catalogue = compute_ph_components(cutout,self.local_bg[i],analysis_threshold_val=self.analysis_threshold_val[i],lifetime_limit=lifetime_limit,output=self.output)
                 # add cutout coords to catalogue
                 catalogue['Y0_cutout'] = self.coords[i][0]
                 catalogue['X0_cutout'] = self.coords[i][1]
@@ -235,14 +235,14 @@ class sf:
             y_peak_loc = peak_coords[0][0]
             x_peak_loc = peak_coords[1][0]
 
-            Model_Beam = self.model_beam_func(source_props['max_intensity'],image.shape,x_peak_loc,y_peak_loc,self.BMAJp,self.BMINp,self.BPA)
+            Model_Beam = self.model_beam_func(source_props['max_intensity'],image.shape,x_peak_loc,y_peak_loc,self.BMAJp/2,self.BMINp/2,self.BPA)
             Flux_correction_factor = self._flux_correction_factor(mask, Model_Beam)
 
             self.flux_correction_list.append(Flux_correction_factor)
 
             # calculate the flux of the source with option for pb correction.
             if self.pb_PATH is not None:
-
+                
                 Flux_total = np.nansum(mask*image/pb_image)/self.Beam   # may need to be altered for universality.
                 Flux_peak = np.nanmax(mask*image/pb_image)              # may need to be altered for universality.
 
@@ -252,6 +252,7 @@ class sf:
                 Flux_peak = np.nanmax(mask*image)
 
             Flux_total = Flux_total*Flux_correction_factor
+            
             Area = np.sum(mask)
 
             Xc = source_props['centroid'][1]
@@ -463,9 +464,24 @@ class sf:
 
     def _flux_correction_factor(self,mask,Model_Beam):
         # calculate the correction factor
+        
         model_beam_flux = np.sum(Model_Beam)
         masked_beam_flux = np.sum(mask*Model_Beam)
+        
+        
+        
         correction_factor = model_beam_flux/masked_beam_flux
+        
+        #plt.imshow(mask)
+        #plt.show()
+        
+        #plt.imshow(Model_Beam)
+        #plt.show()
+        
+        print(correction_factor)
+                
+        #raise ValueError('This function is not working correctly. Please use the flux correction factor from the catalogue.')
+                
         #if correction_factor > 100:
         #    correction_factor = 100
         return correction_factor
@@ -602,10 +618,10 @@ class sf:
         self.polygons = polygons
 
 
-    def set_background(self,detection_threshold,set_bg=None):
+    def set_background(self,detection_threshold,analysis_threshold,set_bg=None):
 
         self.sigma = detection_threshold
-
+        self.analysis_threshold = analysis_threshold
         if self.mode == 'Radio':
 
             if self.cutup:
@@ -613,17 +629,21 @@ class sf:
                 # loop though each cutout and calculate the local background.
 
                 local_bg_list = []
+                analysis_threshold_list = []
                 for cutout in self.cutouts:
                     local_bg = self.radio_background(cutout)
+                    analysis_threshold_list.append(local_bg*self.analysis_threshold)
                     local_bg_list.append(local_bg*self.sigma)
                 local_bg = local_bg_list
+                analysis_threshold = analysis_threshold_list
+                
             else:
 
                 # Radio background is calculated using the median absolute deviation of the total image.
 
                 local_bg = self.radio_background(self.image)
                 local_bg = local_bg*self.sigma
-
+                analysis_threshold = local_bg*self.analysis_threshold
 
         if self.mode == 'Optical':
             # Optical background is calculated using a random sample of pixels
@@ -638,10 +658,12 @@ class sf:
         if self.mode == 'other':
             # If the user has a custom background function, they can pass it in here.
             local_bg = set_bg
-
+            
+        self.analysis_threshold_val = analysis_threshold
         self.local_bg = local_bg
         if self.cutup:
             print('Mean Background across cutouts: ', np.nanmean(self.local_bg))
+        
         else:
             print('Background set to: ',self.local_bg)
 
