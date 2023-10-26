@@ -11,6 +11,7 @@ from skimage import measure
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 from astropy.io import fits
+from astropy.wcs import WCS
 import pandas
 
 ## Add checker of path function.
@@ -137,6 +138,14 @@ class sf:
 
             else:
                 self.radio_characteristing()
+                
+        if self.header:
+            Ra, Dec = self._xy_to_RaDec(self.catalogue['Xc'],self.catalogue['Yc'])
+            self.catalogue['RA'] = Ra
+            self.catalogue['DEC'] = Dec
+            self.catalogue['RA'] = self.catalogue['RA'].astype(float)
+            self.catalogue['DEC'] = self.catalogue['DEC'].astype(float)
+            
         self.set_types_of_dataframe()
 
     def set_types_of_dataframe(self):
@@ -529,6 +538,29 @@ class sf:
         return contour
 
 
+    def _xy_to_RaDec(self,x,y):
+        # convert x,y to ra,dec
+        """
+        Convert an X and Y coordinate to RA and Dec using a header file with astropy.
+
+        Parameters:
+        x (float): The X coordinate.
+        y (float): The Y coordinate.
+        header_file (str): The path to the FITS header file.
+        stokes (int): The Stokes dimension.
+        freq (int): The frequency dimension.
+
+        Returns:
+        tuple: A tuple containing the RA and Dec in degrees.
+        """ 
+        stokes = 0 # stokes and freq are not used in this function.
+        freq = 0 # stokes and freq are not used in this function.
+        wcs = WCS(self.header)
+        ra, dec, _, _ = wcs.all_pix2world(x, y, stokes, freq, 0)
+        return ra, dec
+        
+
+
 
     def create_polygons(self):
 
@@ -564,7 +596,7 @@ class sf:
         # since we have a bounding box, we can just create a polygon in the bounding box.
         polygons = []
         for index, row in tqdm(self.catalogue.iterrows(),total=len(self.catalogue),desc='Creating polygons'):
-            contour = self._get_polygons_in_bbox(row.bbox2-10,row.bbox4+10,row.bbox1-10,row.bbox3+10,row.x1,row.y1,row.Birth,row.Death)
+            contour = self._get_polygons_in_bbox(row.bbox2,row.bbox4,row.bbox1,row.bbox3,row.x1,row.y1,row.Birth,row.Death)
             polygons.append(contour)
 
         self.polygons = polygons
