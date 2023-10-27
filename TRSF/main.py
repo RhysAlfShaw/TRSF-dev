@@ -241,6 +241,7 @@ class sf:
             self.flux_correction_list.append(Flux_correction_factor)
 
             # calculate the flux of the source with option for pb correction.
+             
             if self.pb_PATH is not None:
                 
                 Flux_total = np.nansum(mask*image/pb_image)/self.Beam   # may need to be altered for universality.
@@ -766,8 +767,11 @@ class sf:
         beam_size_arcseconds = self.header['BMAJ']*3600
         BMAJ_oversampled_spacial_width = (BMAJ**2 + beam_size_arcseconds**2)**0.5
         BMAJ = BMAJ_oversampled_spacial_width/arcseconds_per_pixel
+        
+        beam_size_arcseconds = self.header['BMIN']*3600
         BMIN_oversampled_spacial_width = (BMIN**2 + beam_size_arcseconds**2)**0.5
         BMIN = BMIN_oversampled_spacial_width/arcseconds_per_pixel
+        
         self.BMAJp = BMAJ
         self.BMINp = BMIN
         try:
