@@ -82,7 +82,7 @@ class sf:
             for i, cutout in enumerate(self.cutouts):
 
                 print('Computing for Cutout number : {}/{}'.format(i,len(self.cutouts)))
-                catalogue = compute_ph_components(cutout,self.local_bg[i],analysis_threshold_val=self.analysis_threshold_val[i],lifetime_limit=lifetime_limit,output=self.output)
+                catalogue = compute_ph_components(cutout,self.local_bg[i],analysis_threshold_val=self.analysis_threshold_val[i],lifetime_limit=lifetime_limit,output=self.output,bg_map=self.bg_map)
                 # add cutout coords to catalogue
                 catalogue['Y0_cutout'] = self.coords[i][0]
                 catalogue['X0_cutout'] = self.coords[i][1]
@@ -109,8 +109,9 @@ class sf:
                 for i, cutout in enumerate(self.cutouts):
 
                     cutout_cat = self.catalogue[(self.catalogue['Y0_cutout'] == self.coords[i][0]) & (self.catalogue['X0_cutout'] == self.coords[i][1])]
+                    
                     if self.pb_PATH is not None:
-                        Cutout_catalogue = self.radio_characteristing(catalogue=cutout_cat,cutout=cutout,cutout_pb=self.pb_cutouts[i])
+                        Cutout_catalogue = self.radio_characteristing(catalogue=cutout_cat,cutout=cutout,cutout_pb=self.pb_cutouts[i],background_map=self.local_bg[i])
                     else:
                         Cutout_catalogue = self.radio_characteristing(catalogue=cutout_cat,cutout=cutout)
                     # add cutout coords to catalogue
@@ -197,7 +198,7 @@ class sf:
 
 
 
-    def radio_characteristing(self,catalogue=None,cutout=None,cutout_pb=None):
+    def radio_characteristing(self,catalogue=None,cutout=None,cutout_pb=None,background_map=None):
 
         # get beam in pixels
 
@@ -206,12 +207,14 @@ class sf:
             catalogue = self.catalogue
             image = self.image
             pb_image = self.pb_image
+            background_map = self.local_bg
 
 
         else:
             self.Beam = self.calculate_beam()
             image = cutout
             pb_image = cutout_pb
+            background_map = background_map
 
         # for each source in the catalogue create mask and measure properties. prephorm source flux correction.
 
@@ -243,14 +246,17 @@ class sf:
             # calculate the flux of the source with option for pb correction.
              
             if self.pb_PATH is not None:
-                
-                Flux_total = np.nansum(mask*image/pb_image)/self.Beam   # may need to be altered for universality.
+                background_mask = mask*background_map/self.sigma # fixed problem with slight offset.
+                Flux_total = np.nansum(mask*image/pb_image - background_mask)/self.Beam   # may need to be altered for universality.
                 Flux_peak = np.nanmax(mask*image/pb_image)              # may need to be altered for universality.
 
             else:
 
                 Flux_total = np.nansum(mask*image)/self.Beam
                 Flux_peak = np.nanmax(mask*image)
+
+            
+
 
             Flux_total = Flux_total*Flux_correction_factor
             
@@ -479,7 +485,6 @@ class sf:
         #plt.imshow(Model_Beam)
         #plt.show()
         
-        print(correction_factor)
                 
         #raise ValueError('This function is not working correctly. Please use the flux correction factor from the catalogue.')
                 
@@ -613,31 +618,45 @@ class sf:
         # since we have a bounding box, we can just create a polygon in the bounding box.
         polygons = []
         for index, row in tqdm(self.catalogue.iterrows(),total=len(self.catalogue),desc='Creating polygons'):
-            contour = self._get_polygons_in_bbox(row.bbox2,row.bbox4,row.bbox1,row.bbox3,row.x1,row.y1,row.Birth,row.Death)
+            contour = self._get_polygons_in_bbox(row.bbox2-10,row.bbox4+10,row.bbox1-10,row.bbox3+10,row.x1,row.y1,row.Birth,row.Death)
             polygons.append(contour)
 
         self.polygons = polygons
 
 
-    def set_background(self,detection_threshold,analysis_threshold,set_bg=None):
-
+    def set_background(self,detection_threshold,analysis_threshold,set_bg=None,bg_map=None,box_size=10):
+        self.bg_map = bg_map
         self.sigma = detection_threshold
         self.analysis_threshold = analysis_threshold
         if self.mode == 'Radio':
 
             if self.cutup:
-
+                
                 # loop though each cutout and calculate the local background.
+                
+                if bg_map is not None:
+                    
+                    # users wants to use background map so lets make it
+                    local_bg_list = []
+                    analysis_threshold_list = []
+                    for i, cutout in enumerate(self.cutouts):
+                        local_bg_map = self.radio_background_map(cutout, box_size)
+                        
+                        analysis_threshold_list.append(local_bg_map*self.analysis_threshold)
+                        local_bg_list.append(local_bg_map*self.sigma)
+                    
+                
+                else:
 
-                local_bg_list = []
-                analysis_threshold_list = []
-                for cutout in self.cutouts:
-                    local_bg = self.radio_background(cutout)
-                    analysis_threshold_list.append(local_bg*self.analysis_threshold)
-                    local_bg_list.append(local_bg*self.sigma)
+                    local_bg_list = []
+                    analysis_threshold_list = []
+                    for cutout in self.cutouts:
+                        local_bg = self.radio_background(cutout)
+                        analysis_threshold_list.append(local_bg*self.analysis_threshold)
+                        local_bg_list.append(local_bg*self.sigma)
                 local_bg = local_bg_list
                 analysis_threshold = analysis_threshold_list
-                
+                    
             else:
 
                 # Radio background is calculated using the median absolute deviation of the total image.
@@ -662,13 +681,60 @@ class sf:
             
         self.analysis_threshold_val = analysis_threshold
         self.local_bg = local_bg
-        if self.cutup:
-            print('Mean Background across cutouts: ', np.nanmean(self.local_bg))
         
+        if bg_map:
+            print('Using bg_map for analysis.')
         else:
-            print('Background set to: ',self.local_bg)
+            if self.cutup:
+            
+                print('Mean Background across cutouts: ', np.nanmean(self.local_bg))
+            
+            else:
+                print('Background set to: ',self.local_bg)
 
 
+ 
+
+
+    def radio_background_map(self,cutout2, box_size):
+        '''
+        This function takes an image and a box size and calculates the radio_background() for each box to create a map of local background.
+        '''
+        from astropy.stats import mad_std
+        
+        # step size
+        step_size = box_size//2
+        
+        # initialize the map
+        map_shape = (cutout2.shape[0]//step_size, cutout2.shape[1]//step_size)
+        bg_map = np.zeros(map_shape)
+        
+        # box
+        box = np.ones((box_size, box_size))
+        
+        for i in range(0, cutout2.shape[0], step_size):
+            for j in range(0, cutout2.shape[1], step_size):
+                # get the box
+                box_image = cutout2[i:i+box_size, j:j+box_size]
+                # calculate the radio background
+                local_bg = mad_std(box_image, ignore_nan=True)
+                # set the value in the map
+                bg_map[i//step_size, j//step_size] = local_bg
+                
+        # make a version of the image where each pixel is assigned a loval bg value from the map
+        # set nans to 0
+        bg_map[np.isnan(bg_map)] = 0
+        bg_image = np.zeros(cutout2.shape)
+        for i in range(bg_map.shape[0]):
+            for j in range(bg_map.shape[1]):
+                bg_image[i*step_size:(i+1)*step_size, j*step_size:(j+1)*step_size] = bg_map[i, j]
+                
+        
+        return bg_image
+        
+        
+        
+        
 
 
     def radio_background(self,image):

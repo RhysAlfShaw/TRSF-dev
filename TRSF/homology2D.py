@@ -9,6 +9,7 @@ import cripser
 import numpy as np
 import pandas
 from tqdm import tqdm
+import matplotlib.pyplot as plt
 
 
 def parent_tag_func(row,pd):
@@ -129,18 +130,46 @@ def get_mask(row, img):
 
 
 
-def compute_ph_components(img,local_bg,analysis_threshold_val,lifetime_limit=0,output=True):
+def compute_ph_components(img,local_bg,analysis_threshold_val,lifetime_limit=0,output=True,bg_map=False):
     pd = cripser.computePH(-img,maxdim=0)
     pd = pandas.DataFrame(pd,columns=['dim','Birth','Death','x1','y1','z1','x2','y2','z2'],index=range(1,len(pd)+1))
     pd.drop(columns=['dim','z1','z2'],inplace=True)
     pd['lifetime'] = pd['Death'] - pd['Birth']
     pd['Birth'] = -pd['Birth'] 
     pd['Death'] = -pd['Death'] 
-    pd['Death'] = np.where(pd['Death'] < analysis_threshold_val, analysis_threshold_val, pd['Death'])
+    
+    
+    if bg_map:
+        
+        list_of_index_to_drop = []
+    
+        #print(pd)
+        #print(local_bg)
+        
+        #plt.imshow(local_bg)
+        #plt.show()
+        for index, row in pd.iterrows():
+            if row['Birth'] < local_bg[int(row.x1),int(row.y1)]:
+                list_of_index_to_drop.append(index)
+        pd.drop(list_of_index_to_drop,inplace=True)
+    
+        
+        # for each row evaluate if death is below analysis thresholdval map value at its birth point. if its below then set Death to bg map value.    
+        for index, row in pd.iterrows():
+            Analy_val = analysis_threshold_val[int(row.y1),int(row.x1)]
+            if row['Death'] < Analy_val:
+                row['Death'] = Analy_val
+    
+            
+    else:
+        
+        pd = pd[pd['Birth']>local_bg] # maybe this should be at the beginning.
+        pd['Death'] = np.where(pd['Death'] < analysis_threshold_val, analysis_threshold_val, pd['Death'])
+    
+    
     pd['lifetime'] = abs(pd['Death'] - pd['Birth'])
-    
-    pd = pd[pd['Birth']>local_bg] # maybe this should be at the beginning.
-    
+        
+
     print('Persis Diagram computed. Length: ',len(pd))
 
     if lifetime_limit > 0:
