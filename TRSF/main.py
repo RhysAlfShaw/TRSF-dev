@@ -13,6 +13,7 @@ import matplotlib.pyplot as plt
 from astropy.io import fits
 from astropy.wcs import WCS
 import pandas
+import pdb
 
 ## Add checker of path function.
 ## Create a similar style known flux density image and compare the corrected flux densities to know values.
@@ -21,11 +22,23 @@ import pandas
 
 class sf:
 
-
-
-
+    
     def __init__(self,image,image_PATH,mode,pb_PATH=None,cutup=False,cutup_size=500,output=True):
-
+       
+        print("""   
+##############################################
+_______   _______  _______  _______  _______  
+(  __  \ (  ____ )|\     /|\__   __/(  __  \ 
+| (  \  )| (    )|| )   ( |   ) (   | (  \  )
+| |   ) || (____)|| |   | |   | |   | |   ) |
+| |   | ||     __)| |   | |   | |   | |   | |
+| |   ) || (\ (   | |   | |   | |   | |   ) |
+| (__/  )| ) \ \__| (___) |___) (___| (__/  )
+(______/ |/   \__/(_______)\_______/(______/ 
+        
+#############################################
+Detector of astRonomical soUrces in optIcal and raDio images
+        """)
         print('Initialising Source Finder..')
         self.cutup = cutup
         self.output = output
@@ -83,6 +96,7 @@ class sf:
 
                 print('Computing for Cutout number : {}/{}'.format(i,len(self.cutouts)))
                 catalogue = compute_ph_components(cutout,self.local_bg[i],analysis_threshold_val=self.analysis_threshold_val[i],lifetime_limit=lifetime_limit,output=self.output,bg_map=self.bg_map)
+                print('Done ')
                 # add cutout coords to catalogue
                 catalogue['Y0_cutout'] = self.coords[i][0]
                 catalogue['X0_cutout'] = self.coords[i][1]
@@ -93,7 +107,7 @@ class sf:
 
         else:
 
-            self.catalogue = compute_ph_components(self.image,self.local_bg,lifetime_limit=lifetime_limit,output=self.output)
+            self.catalogue = compute_ph_components(self.image,self.local_bg,analysis_threshold_val=self.analysis_threshold,lifetime_limit=lifetime_limit,output=self.output)
 
 
 
@@ -113,7 +127,7 @@ class sf:
                     if self.pb_PATH is not None:
                         Cutout_catalogue = self.radio_characteristing(catalogue=cutout_cat,cutout=cutout,cutout_pb=self.pb_cutouts[i],background_map=self.local_bg[i])
                     else:
-                        Cutout_catalogue = self.radio_characteristing(catalogue=cutout_cat,cutout=cutout)
+                        Cutout_catalogue = self.radio_characteristing(catalogue=cutout_cat,cutout=cutout,cutout_pb=None,background_map=self.local_bg[i])
                     # add cutout coords to catalogue
                     Cutout_catalogue['Y0_cutout'] = self.coords[i][0] # these get removed in the previous function.
                     Cutout_catalogue['X0_cutout'] = self.coords[i][1]
@@ -175,7 +189,8 @@ class sf:
         self.catalogue['Class'] = self.catalogue['Class'].astype(float)
         self.catalogue['Y0_cutout'] = self.catalogue['Y0_cutout'].astype(float)
         self.catalogue['X0_cutout'] = self.catalogue['X0_cutout'].astype(float)
-
+        self.catalogue['SNR'] = self.catalogue['SNR'].astype(float)
+        self.catalogue['Noise'] = self.catalogue['Noise'].astype(float)
 
 
 
@@ -199,7 +214,7 @@ class sf:
 
 
     def radio_characteristing(self,catalogue=None,cutout=None,cutout_pb=None,background_map=None):
-
+        
         # get beam in pixels
 
         if cutout is None:
@@ -223,7 +238,7 @@ class sf:
         params = []
 
         for i, source in tqdm(catalogue.iterrows(),total=len(catalogue),desc='Calculating Source Properties..',disable=not self.output):
-
+            print(i)
             mask = self.get_mask(row=source,image=image)
             #print(np.sum(mask))
             #plt.imshow(mask)
@@ -246,22 +261,32 @@ class sf:
             # calculate the flux of the source with option for pb correction.
              
             if self.pb_PATH is not None:
-                background_mask = mask*background_map/self.sigma # fixed problem with slight offset.
+                
+                background_mask = mask*background_map/self.sigma                    # fixed problem with slight offset.
                 Flux_total = np.nansum(mask*image/pb_image - background_mask)/self.Beam   # may need to be altered for universality.
-                Flux_peak = np.nanmax(mask*image/pb_image)              # may need to be altered for universality.
-
-            else:
-
-                Flux_total = np.nansum(mask*image)/self.Beam
-                Flux_peak = np.nanmax(mask*image)
-
+                Flux_peak = np.nanmax(mask*image/pb_image) - background_mask[y_peak_loc,x_peak_loc]
             
-
-
+                # may need to be altered for universality.
+                # get location of peak in the image
+                
+                Flux_peak_loc = np.where(image == Flux_peak)
+                Flux_peak = Flux_peak - background_mask[Flux_peak_loc[0][0],Flux_peak_loc[1][0]]
+                
+            else:
+                
+                background_mask = mask*background_map/self.sigma                 # fixed problem with slight offset.
+                
+                Flux_total = np.nansum(mask*image - background_mask)/self.Beam   # may need to be altered for universality.
+                Flux_peak = np.nanmax(mask*image) - background_mask[y_peak_loc,x_peak_loc]
+            
+            #pdb.set_trace() # for debugging
+            background_mask = np.where(background_mask == 0, np.nan, background_mask) # set background mask to nan where there is no background.
+            Noise = np.nanmean(background_mask)
+            print('Noise: ',Noise)
             Flux_total = Flux_total*Flux_correction_factor
             
             Area = np.sum(mask)
-
+            SNR = Flux_total/Noise
             Xc = source_props['centroid'][1]
             Yc = source_props['centroid'][0]
 
@@ -295,7 +320,9 @@ class sf:
                            Min,
                            Pa,
                            source.parent_tag,
-                           source.Class])
+                           source.Class,
+                           SNR,
+                           Noise])
         if self.cutup:
             cutup_Catalogue = self.create_params_df(params)
             return cutup_Catalogue
@@ -337,7 +364,9 @@ class sf:
                                                   'Min',
                                                   'Pa',
                                                   'parent_tag',
-                                                  'Class'])
+                                                  'Class',
+                                                  'SNR',
+                                                  'Noise'])
 
         if self.cutup:
             return params
@@ -618,7 +647,7 @@ class sf:
         # since we have a bounding box, we can just create a polygon in the bounding box.
         polygons = []
         for index, row in tqdm(self.catalogue.iterrows(),total=len(self.catalogue),desc='Creating polygons'):
-            contour = self._get_polygons_in_bbox(row.bbox2-10,row.bbox4+10,row.bbox1-10,row.bbox3+10,row.x1,row.y1,row.Birth,row.Death)
+            contour = self._get_polygons_in_bbox(row.bbox2-2,row.bbox4+2,row.bbox1-2,row.bbox3+2,row.x1,row.y1,row.Birth,row.Death)
             polygons.append(contour)
 
         self.polygons = polygons

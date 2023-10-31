@@ -1,4 +1,5 @@
-# TRSF (A General purpose Source Finder for Astronomical Images.)
+# DRUID (Detector of astRonomical soUrces in optIcal and raDio images.)
+(Used to be named TRSF)
 
 [![Run tests](https://github.com/RhysAlfShaw/TRSF/actions/workflows/pytest.yaml/badge.svg)](https://github.com/RhysAlfShaw/TRSF/actions/workflows/pytest.yaml)
 [![codecov](https://codecov.io/gh/RhysAlfShaw/TRSF-dev/graph/badge.svg?token=C4KD4C6IXA)](https://codecov.io/gh/RhysAlfShaw/TRSF-dev)

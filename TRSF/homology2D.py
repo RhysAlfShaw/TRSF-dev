@@ -24,15 +24,18 @@ def parent_tag_func(row,pd):
 
 def classify_single(row):
     if row.new_row == 0:
-        if len(row.enclosed_i) == 0:
-            if np.isnan(row.parent_tag):
+        if len(row.enclosed_i) == 0: # no children
+            if np.isnan(row.parent_tag): # no parent 
                 return 0 # no children, no parent.
             else:
                 return 1 # no child has parent.
         else:
-            return 2 # has children.
+            if np.isnan(row.parent_tag):
+                return 2 # has children, no parent.
+            else:
+                return 3 # has children, has parent.
     else:
-        return 3 # new row has children.
+        return 4 # new row has children.
         
 
 
@@ -51,6 +54,7 @@ def correct_first_destruction(pd,output):
             new_row = row.copy()
             new_row['Death'] = pd.loc[enlosed_i[0]]['Death']
             new_row['new_row'] = 1
+            new_row.name = len(pd)+i
             pd = pandas.concat((pd,new_row.to_frame().T), ignore_index=False)
         
     return pd
