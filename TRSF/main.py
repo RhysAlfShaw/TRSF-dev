@@ -805,14 +805,15 @@ https://github.com/RhysAlfShaw/TRSF-dev
         
 
 
-    def radio_background(self,image,metric='rms'):
+    def radio_background(self,image,metric='mad_std'):
+
         if metric == 'mad_std':
                 
             from astropy.stats import mad_std
 
             local_bg = mad_std(image,ignore_nan=True)
             
-        if metric == 'rms':
+        elif metric == 'rms':
             
             local_bg = np.sqrt(np.nanmean(image**2))
             
