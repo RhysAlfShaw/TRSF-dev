@@ -114,7 +114,7 @@ https://github.com/RhysAlfShaw/TRSF-dev
 
         else:
 
-            self.catalogue = compute_ph_components(self.image,self.local_bg,analysis_threshold_val=self.analysis_threshold_val,lifetime_limit=lifetime_limit,output=self.output,bg_map=self.bg_map,area_limit=self.area_limit)
+            self.catalogue = compute_ph_components(self.image,self.local_bg,analysis_threshold_val=self.analysis_threshold_val_val,lifetime_limit=lifetime_limit,output=self.output,bg_map=self.bg_map,area_limit=self.area_limit)
 
 
     def gaussian2dkernal_convolution(self, image, sigma):
@@ -176,12 +176,15 @@ https://github.com/RhysAlfShaw/TRSF-dev
             
             
         if self.header:
-            Ra, Dec = self._xy_to_RaDec(self.catalogue['Xc'],self.catalogue['Yc'])
-            self.catalogue['RA'] = Ra
-            self.catalogue['DEC'] = Dec
-            self.catalogue['RA'] = self.catalogue['RA'].astype(float)
-            self.catalogue['DEC'] = self.catalogue['DEC'].astype(float)
-            
+            try:
+                Ra, Dec = self._xy_to_RaDec(self.catalogue['Xc'],self.catalogue['Yc'])
+                self.catalogue['RA'] = Ra
+                self.catalogue['DEC'] = Dec
+                self.catalogue['RA'] = self.catalogue['RA'].astype(float)
+                self.catalogue['DEC'] = self.catalogue['DEC'].astype(float)
+            except:
+                pass
+                
         self.set_types_of_dataframe()
 
     def set_types_of_dataframe(self):
@@ -208,8 +211,9 @@ https://github.com/RhysAlfShaw/TRSF-dev
         self.catalogue['Pa'] = self.catalogue['Pa'].astype(float)
         self.catalogue['parent_tag'] = self.catalogue['parent_tag'].astype(float)
         self.catalogue['Class'] = self.catalogue['Class'].astype(float)
-        self.catalogue['Y0_cutout'] = self.catalogue['Y0_cutout'].astype(float)
-        self.catalogue['X0_cutout'] = self.catalogue['X0_cutout'].astype(float)
+        if self.cutup:   
+            self.catalogue['Y0_cutout'] = self.catalogue['Y0_cutout'].astype(float)
+            self.catalogue['X0_cutout'] = self.catalogue['X0_cutout'].astype(float)
         self.catalogue['SNR'] = self.catalogue['SNR'].astype(float)
         self.catalogue['Noise'] = self.catalogue['Noise'].astype(float)
 
@@ -242,15 +246,20 @@ https://github.com/RhysAlfShaw/TRSF-dev
             self.Beam = self.calculate_beam()
             catalogue = self.catalogue
             image = self.image
-            pb_image = self.pb_image
+            if self.pb_PATH is not None:
+                pb_image = self.pb_image
+            else:
+                pb_image = None
             background_map = self.local_bg
 
 
         else:
             self.Beam = self.calculate_beam()
             image = cutout
-            pb_image = cutout_pb
+            if self.pb_PATH is not None:
+                pb_image = cutout_pb
             background_map = background_map
+
 
         # for each source in the catalogue create mask and measure properties. prephorm source flux correction.
 
@@ -259,8 +268,11 @@ https://github.com/RhysAlfShaw/TRSF-dev
         params = []
 
         for i, source in tqdm(catalogue.iterrows(),total=len(catalogue),desc='Calculating Source Properties..',disable=not self.output):
-            print(i)
-            mask = self.get_mask(row=source,image=image)
+            #print(i)
+            try:
+                mask = self.get_mask(row=source,image=image)
+            except:
+                continue
             #print(np.sum(mask))
             #plt.imshow(mask)
             #plt.show()
@@ -296,14 +308,14 @@ https://github.com/RhysAlfShaw/TRSF-dev
             else:
                 
                 background_mask = mask*background_map/self.sigma                 # fixed problem with slight offset.
-                
+                #print(self.Beam)
                 Flux_total = np.nansum(mask*image - background_mask)/self.Beam   # may need to be altered for universality.
                 Flux_peak = np.nanmax(mask*image) - background_mask[y_peak_loc,x_peak_loc]
             
             #pdb.set_trace() # for debugging
             background_mask = np.where(background_mask == 0, np.nan, background_mask) # set background mask to nan where there is no background.
             Noise = np.nanmean(background_mask)
-            print('Noise: ',Noise)
+            #print('Noise: ',Noise)
             Flux_total = Flux_total*Flux_correction_factor
             
             Area = np.sum(mask)
@@ -708,9 +720,9 @@ https://github.com/RhysAlfShaw/TRSF-dev
 
                 # Radio background is calculated using the median absolute deviation of the total image.
 
-                local_bg = self.radio_background(self.image)
-                local_bg = local_bg*self.sigma
-                analysis_threshold = local_bg*self.analysis_threshold
+                local_bg_o = self.radio_background(self.image)
+                local_bg = local_bg_o*self.sigma
+                analysis_threshold = local_bg_o*self.analysis_threshold
 
         if self.mode == 'Optical':
             # Optical background is calculated using a random sample of pixels
