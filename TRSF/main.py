@@ -21,7 +21,7 @@ import pandas
 class sf:
 
     
-    def __init__(self,image,image_PATH,mode,pb_PATH=None,cutup=False,cutup_size=500,output=True,area_limit=1,smooth_sigma=1):
+    def __init__(self,image,image_PATH,mode,pb_PATH=None,cutup=False,cutup_size=500,output=True,area_limit=1,smooth_sigma=0):
        
         print("""   
 ##############################################
@@ -73,6 +73,7 @@ https://github.com/RhysAlfShaw/TRSF-dev
         if self.smooth_sigma != 0:
             self.image = self._image_smoothing(self.image,self.smooth_sigma)
             print('Image smoothed with sigma: ',self.smooth_sigma)
+      
         print('Done.')
 
 
@@ -113,7 +114,9 @@ https://github.com/RhysAlfShaw/TRSF-dev
             self.catalogue = pandas.concat(catalogue_list)
 
         else:
-
+            
+            print(self.analysis_threshold_val)
+            
             self.catalogue = compute_ph_components(self.image,self.local_bg,analysis_threshold_val=self.analysis_threshold_val,lifetime_limit=lifetime_limit,output=self.output,bg_map=self.bg_map,area_limit=self.area_limit)
 
 
