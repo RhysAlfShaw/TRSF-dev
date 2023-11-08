@@ -11,7 +11,6 @@ import pandas
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 
-
 def parent_tag_func(row,pd):
     # search for yourself in anouther points enclosed_i
     for i in range(len(pd)):
@@ -134,7 +133,7 @@ def get_mask(row, img):
 
 
 
-def compute_ph_components(img,local_bg,analysis_threshold_val,lifetime_limit=0,output=True,bg_map=False):
+def compute_ph_components(img,local_bg,analysis_threshold_val,lifetime_limit=0,output=True,bg_map=False,area_limit=3):
     pd = cripser.computePH(-img,maxdim=0)
     pd = pandas.DataFrame(pd,columns=['dim','Birth','Death','x1','y1','z1','x2','y2','z2'],index=range(1,len(pd)+1))
     pd.drop(columns=['dim','z1','z2'],inplace=True)
@@ -152,9 +151,12 @@ def compute_ph_components(img,local_bg,analysis_threshold_val,lifetime_limit=0,o
         
         #plt.imshow(local_bg)
         #plt.show()
+        
         for index, row in pd.iterrows():
+            # check if local_bg is a map or a value
             if row['Birth'] < local_bg[int(row.x1),int(row.y1)]:
                 list_of_index_to_drop.append(index)
+        
         pd.drop(list_of_index_to_drop,inplace=True)
     
         
@@ -169,8 +171,7 @@ def compute_ph_components(img,local_bg,analysis_threshold_val,lifetime_limit=0,o
         
         pd = pd[pd['Birth']>local_bg] # maybe this should be at the beginning.
         pd['Death'] = np.where(pd['Death'] < analysis_threshold_val, analysis_threshold_val, pd['Death'])
-    
-    
+       
     pd['lifetime'] = abs(pd['Death'] - pd['Birth'])
         
 
@@ -187,12 +188,13 @@ def compute_ph_components(img,local_bg,analysis_threshold_val,lifetime_limit=0,o
         area_list = []
         for i in tqdm(range(0,len(pd)),total=len(pd),desc='Calculating area',disable=not output):
             area = calculate_area(pd.iloc[i],img)
+            #print(area)
             area_list.append(area)
-
+        print(len(pd))
         pd['area'] = area_list
-
-        pd = pd[pd['area'] > 1] # remove 1 pixel points
+        pd = pd[pd['area'] > area_limit]     # remove 1 pixel points
         
+        print(len(pd))
         enclosed_i_list = []
         for index, row in tqdm(pd.iterrows(),total=len(pd),desc='Making point assoc',disable=not output):
             enclosed_i = make_point_enclosure_assoc(row,pd,img)

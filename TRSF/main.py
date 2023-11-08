@@ -13,8 +13,6 @@ import matplotlib.pyplot as plt
 from astropy.io import fits
 from astropy.wcs import WCS
 import pandas
-import pdb
-
 ## Add checker of path function.
 ## Create a similar style known flux density image and compare the corrected flux densities to know values.
 ## plot the difference as a funciton of correction factor.
@@ -23,7 +21,7 @@ import pdb
 class sf:
 
     
-    def __init__(self,image,image_PATH,mode,pb_PATH=None,cutup=False,cutup_size=500,output=True):
+    def __init__(self,image,image_PATH,mode,pb_PATH=None,cutup=False,cutup_size=500,output=True,area_limit=1,smooth_sigma=1):
        
         print("""   
 ##############################################
@@ -38,11 +36,17 @@ _______   _______  _______  _______  _______
         
 #############################################
 Detector of astRonomical soUrces in optIcal and raDio images
+
+Version: 0.1.0
+For more information see:
+https://github.com/RhysAlfShaw/TRSF-dev
         """)
         print('Initialising Source Finder..')
         self.cutup = cutup
         self.output = output
         self.image_PATH = image_PATH
+        self.area_limit = area_limit
+        self.smooth_sigma = smooth_sigma
         if image_PATH is None:
             self.image = image
         else:
@@ -66,6 +70,9 @@ Detector of astRonomical soUrces in optIcal and raDio images
             else:
                 self.pb_cutouts = None
                 self.pb_coords = None
+        if self.smooth_sigma != 0:
+            self.image = self._image_smoothing(self.image,self.smooth_sigma)
+            print('Image smoothed with sigma: ',self.smooth_sigma)
         print('Done.')
 
 
@@ -95,7 +102,7 @@ Detector of astRonomical soUrces in optIcal and raDio images
             for i, cutout in enumerate(self.cutouts):
 
                 print('Computing for Cutout number : {}/{}'.format(i,len(self.cutouts)))
-                catalogue = compute_ph_components(cutout,self.local_bg[i],analysis_threshold_val=self.analysis_threshold_val[i],lifetime_limit=lifetime_limit,output=self.output,bg_map=self.bg_map)
+                catalogue = compute_ph_components(cutout,self.local_bg[i],analysis_threshold_val=self.analysis_threshold_val[i],lifetime_limit=lifetime_limit,output=self.output,bg_map=self.bg_map,area_limit=self.area_limit)
                 print('Done ')
                 # add cutout coords to catalogue
                 catalogue['Y0_cutout'] = self.coords[i][0]
@@ -107,8 +114,18 @@ Detector of astRonomical soUrces in optIcal and raDio images
 
         else:
 
-            self.catalogue = compute_ph_components(self.image,self.local_bg,analysis_threshold_val=self.analysis_threshold,lifetime_limit=lifetime_limit,output=self.output)
+            self.catalogue = compute_ph_components(self.image,self.local_bg,analysis_threshold_val=self.analysis_threshold_val,lifetime_limit=lifetime_limit,output=self.output,bg_map=self.bg_map,area_limit=self.area_limit)
 
+
+    def gaussian2dkernal_convolution(self, image, sigma):
+        '''
+        This function takes an image and a sigma value and convolves the image with a 2D gaussian kernel.
+        '''
+        from scipy.ndimage import gaussian_filter
+        print(sum(image.flatten()))
+        image = gaussian_filter(image, sigma=sigma)
+        print(sum(image.flatten()))
+        return image
 
 
 
@@ -153,7 +170,11 @@ Detector of astRonomical soUrces in optIcal and raDio images
 
             else:
                 self.radio_characteristing()
-                
+        
+        if self.mode == 'optical':
+            self.optical_characteristing()
+            
+            
         if self.header:
             Ra, Dec = self._xy_to_RaDec(self.catalogue['Xc'],self.catalogue['Yc'])
             self.catalogue['RA'] = Ra
@@ -328,9 +349,6 @@ Detector of astRonomical soUrces in optIcal and raDio images
             return cutup_Catalogue
         else:
             self.create_params_df(params)
-
-
-
 
 
 
@@ -698,6 +716,7 @@ Detector of astRonomical soUrces in optIcal and raDio images
             # Optical background is calculated using a random sample of pixels
             mean_bg, std_bg = self.optical_background(nsamples=1000)
             local_bg = mean_bg + self.sigma*std_bg
+            analysis_threshold = mean_bg + std_bg*self.analysis_threshold
 
         if self.mode == 'X-ray':
             # no implemented X-ray specific background function.
@@ -706,7 +725,10 @@ Detector of astRonomical soUrces in optIcal and raDio images
 
         if self.mode == 'other':
             # If the user has a custom background function, they can pass it in here.
-            local_bg = set_bg
+            local_bg = set_bg*self.sigma
+            analysis_threshold = local_bg*self.analysis_threshold
+            print('Background set to: ',local_bg)
+            print('Analysis threshold set to: ',analysis_threshold)
             
         self.analysis_threshold_val = analysis_threshold
         self.local_bg = local_bg
@@ -761,17 +783,27 @@ Detector of astRonomical soUrces in optIcal and raDio images
         
         return bg_image
         
+    
+    
+    
         
         
+
+
+    def radio_background(self,image,metric='rms'):
+        if metric == 'mad_std':
+                
+            from astropy.stats import mad_std
+
+            local_bg = mad_std(image,ignore_nan=True)
+            
+        if metric == 'rms':
+            
+            local_bg = np.sqrt(np.nanmean(image**2))
+            
+        else:
+            raise ValueError('metric not recognised. Please use mad_std or rms')
         
-
-
-    def radio_background(self,image):
-
-        from astropy.stats import mad_std
-
-        local_bg = mad_std(image,ignore_nan=True)
-
         return local_bg
 
 
@@ -816,6 +848,8 @@ Detector of astRonomical soUrces in optIcal and raDio images
 
         mean_bg = np.mean(background_values)
         std_bg = np.std(background_values)
+        
+        
         return mean_bg, std_bg
 
 
