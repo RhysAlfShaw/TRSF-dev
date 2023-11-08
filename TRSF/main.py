@@ -114,7 +114,7 @@ https://github.com/RhysAlfShaw/TRSF-dev
 
         else:
 
-            self.catalogue = compute_ph_components(self.image,self.local_bg,analysis_threshold_val=self.analysis_threshold_val_val,lifetime_limit=lifetime_limit,output=self.output,bg_map=self.bg_map,area_limit=self.area_limit)
+            self.catalogue = compute_ph_components(self.image,self.local_bg,analysis_threshold_val=self.analysis_threshold_val,lifetime_limit=lifetime_limit,output=self.output,bg_map=self.bg_map,area_limit=self.area_limit)
 
 
     def gaussian2dkernal_convolution(self, image, sigma):
