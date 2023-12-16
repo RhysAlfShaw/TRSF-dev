@@ -1,4 +1,4 @@
-from TRSF.main import sf
+from DRUID.main import sf
 import pytest
 
 def test_sf():

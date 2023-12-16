@@ -11,7 +11,7 @@ hdulist = fits.open(PATH_image)
 #hdulist.info()
 image = hdulist[0].data
 
-from TRSF import sf
+from DRUID import sf
 
 # source find on the above image
 xmin = 10600

@@ -1,4 +1,4 @@
-from TRSF import sf
+from DRUID import sf
 # take system arguments
 import argparse
 

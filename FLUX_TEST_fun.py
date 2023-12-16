@@ -1,4 +1,4 @@
-from TRSF import sf
+from DRUID import sf
 import numpy as np
 import matplotlib.pyplot as plt
 plt.style.use('/Users/rs17612/Documents/GitHub/style/mplrc_sotiria.mplstyle')
