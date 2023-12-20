@@ -28,7 +28,7 @@ setproctitle.setproctitle('DRUID')
 class sf:
 
     
-    def __init__(self,image,image_PATH,mode,pb_PATH=None,cutup=False,cutup_size=500,output=True,area_limit=1,smooth_sigma=1,nproc=4):
+    def __init__(self,image,image_PATH,mode,pb_PATH=None,cutup=False,cutup_size=500,output=True,area_limit=1,smooth_sigma=1,nproc=4,GPU=False):
        
         print("""   
 ##############################################
@@ -54,7 +54,9 @@ https://github.com/RhysAlfShaw/TRSF-dev
         self.image_PATH = image_PATH
         self.area_limit = area_limit
         self.smooth_sigma = smooth_sigma
-        
+        self.GPU = GPU
+        if self.GPU:
+            print('GPU=TRUE | GPU acceleration enabled.')
         # set nproc as a env variable
         self.nproc = nproc
 
@@ -113,7 +115,7 @@ https://github.com/RhysAlfShaw/TRSF-dev
             for i, cutout in enumerate(self.cutouts):
 
                 print('Computing for Cutout number : {}/{}'.format(i,len(self.cutouts)))
-                catalogue = compute_ph_components(cutout,self.local_bg[i],analysis_threshold_val=self.analysis_threshold_val[i],lifetime_limit=lifetime_limit,output=self.output,bg_map=self.bg_map,area_limit=self.area_limit,nproc=self.nproc)
+                catalogue = compute_ph_components(cutout,self.local_bg[i],analysis_threshold_val=self.analysis_threshold_val[i],lifetime_limit=lifetime_limit,output=self.output,bg_map=self.bg_map,area_limit=self.area_limit,nproc=self.nproc,GPU=self.GPU)
                 print('Done ')
                 # add cutout coords to catalogue
                 catalogue['Y0_cutout'] = self.coords[i][0]
@@ -125,7 +127,7 @@ https://github.com/RhysAlfShaw/TRSF-dev
 
         else:
 
-            self.catalogue = compute_ph_components(self.image,self.local_bg,analysis_threshold_val=self.analysis_threshold_val,lifetime_limit=lifetime_limit,output=self.output,bg_map=self.bg_map,area_limit=self.area_limit,nproc=self.nproc)
+            self.catalogue = compute_ph_components(self.image,self.local_bg,analysis_threshold_val=self.analysis_threshold_val,lifetime_limit=lifetime_limit,output=self.output,bg_map=self.bg_map,area_limit=self.area_limit,nproc=self.nproc,GPU=self.GPU)
 
 
     def gaussian2dkernal_convolution(self, image, sigma):
