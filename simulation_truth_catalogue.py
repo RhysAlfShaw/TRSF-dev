@@ -52,7 +52,7 @@ for i in range(N):
     peak_flux.append(image_radio[int(x[i]), int(y[i])])
 
 Catalogue['peak_flux'] = peak_flux
-Catalogue.write('Simulation_Catalogue_Truth'+str(args.sn)+'.fits', format='fits',overwrite=True)
+Catalogue.write(str(args.save_path)+'Simulation_Catalogue_Truth'+str(args.sn)+'.fits', format='fits',overwrite=True)
 
 # save image to fits file with astropy.
 
@@ -63,4 +63,4 @@ hdul.header['BMAJ'] = beam
 hdul.header['BMIN'] = beam 
 hdul.header['CDELT1'] = 1  # to ensure that the units are correct int source finder.
 hdul.header['BPA'] = 0
-hdul.writeto('Simulation_Image_radio'+str(args.sn)+'.fits', overwrite=True)
+hdul.writeto(str(args.save_path)+'Simulation_Image_radio'+str(args.sn)+'.fits', overwrite=True)

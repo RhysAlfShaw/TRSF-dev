@@ -859,9 +859,10 @@ https://github.com/RhysAlfShaw/TRSF-dev
 
 
         background_values = np.array(background_values)
+        self.background_values = background_values
         background_values = background_values[background_values < np.mean(background_values) + 3*np.std(background_values)]
         background_values = background_values[background_values > np.mean(background_values) - 3*np.std(background_values)]
-
+        #self.background_values = background_values
         mean_bg = np.mean(background_values)
         std_bg = np.std(background_values)
         
