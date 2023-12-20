@@ -5,25 +5,25 @@ import pdb
 from astropy.table import Table
 from scipy.ndimage import gaussian_filter
 from astropy.io import fits
-import argparse
+#import argparse
 
-parser = argparse.ArgumentParser()
+#parser = argparse.ArgumentParser()
 
-parser.add_argument('--N', type=int, default=1000, help='Number of sources to simulate.')
-parser.add_argument('--xmax', type=int, default=3000, help='Size of the image in x.')
-parser.add_argument('--ymax', type=int, default=3000, help='Size of the image in y.')
-parser.add_argument('--sn', type=int, default=1, help='simulation number.')
-parser.add_argument('--seed', type=int, default=0, help='seed for random number generator.')
-parser.add_argument('--save_path', type=str, default='.', help='path to save the simulation to.')
+#parser.add_argument('--N', type=int, default=1000, help='Number of sources to simulate.')
+#parser.add_argument('--xmax', type=int, default=3000, help='Size of the image in x.')
+#parser.add_argument('--ymax', type=int, default=3000, help='Size of the image in y.')
+#parser.add_argument('--sn', type=int, default=1, help='simulation number.')
+#parser.add_argument('--seed', type=int, default=0, help='seed for random number generator.')
+#parser.add_argument('--save_path', type=str, default='.', help='path to save the simulation to.')
 
-args = parser.parse_args()
+#args = parser.parse_args()
 
 # set seed random but repeatable results.
-np.random.seed(args.seed)
+np.random.seed(0)
 
-N = args.N
-xmax = args.xmax
-ymax = args.ymax
+N = 1000
+xmax = 5000
+ymax = 5000
 
 # source positions (x,y) these will be generated randomly
 

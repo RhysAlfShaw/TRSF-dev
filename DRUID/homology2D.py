@@ -10,6 +10,15 @@ import numpy as np
 import pandas
 from tqdm import tqdm
 import matplotlib.pyplot as plt
+from multiprocess import Pool
+import time
+import setproctitle
+import os
+
+# set proc title
+
+#nproc = os.environ['NPROC'] # make this a global variable
+
 
 def parent_tag_func(row,pd):
     # search for yourself in anouther points enclosed_i
@@ -133,7 +142,9 @@ def get_mask(row, img):
 
 
 
-def compute_ph_components(img,local_bg,analysis_threshold_val,lifetime_limit=0,output=True,bg_map=False,area_limit=3):
+
+
+def compute_ph_components(img,local_bg,analysis_threshold_val,lifetime_limit=0,output=True,bg_map=False,area_limit=3,nproc=1):
     pd = cripser.computePH(-img,maxdim=0)
     pd = pandas.DataFrame(pd,columns=['dim','Birth','Death','x1','y1','z1','x2','y2','z2'],index=range(1,len(pd)+1))
     pd.drop(columns=['dim','z1','z2'],inplace=True)
@@ -184,21 +195,57 @@ def compute_ph_components(img,local_bg,analysis_threshold_val,lifetime_limit=0,o
     pd.sort_values(by='Birth',ascending=False,inplace=True,ignore_index=True)
     
     if len(pd) > 0:
+        
+        def process_area(i):
+            return calculate_area(pd.iloc[i], img)
+        
+        def process_assoc(i):
+
+            return make_point_enclosure_assoc(pd.iloc[i], pd, img)
+
+        setproctitle.setproctitle('DRUID')
 
         area_list = []
-        for i in tqdm(range(0,len(pd)),total=len(pd),desc='Calculating area',disable=not output):
-            area = calculate_area(pd.iloc[i],img)
-            #print(area)
-            area_list.append(area)
+        # save the first 10 rows from the pd
+        rows = pd.iloc[0:10]
+        # save rows to csv
+        #rows.to_csv('test_pd_area.csv') 
+        # save image as npy
+        np.save('are_test_image.npy',img)     
+        # # parrallelize this loop
+        
+        # for i in tqdm(range(0,len(pd)),total=len(pd),desc='Calculating area',disable=not output):
+        #     area = calculate_area(pd.iloc[i],img)
+        #     #print(area)
+        #     area_list.append(area)
+        print('Calculating area with ',nproc,' processes')
+        
+        t0 = time.time()
+        print("Chunksize: ",len(pd)//nproc)
+        with Pool(nproc) as p:
+            area_list = list(p.imap(process_area, range(len(pd)),chunksize=len(pd)//nproc))
+        
+        print('Area calculated! t='+str(time.time()-t0)+' s')
         print(len(pd))
         pd['area'] = area_list
         pd = pd[pd['area'] > area_limit]     # remove 1 pixel points
         
         print(len(pd))
-        enclosed_i_list = []
-        for index, row in tqdm(pd.iterrows(),total=len(pd),desc='Making point assoc',disable=not output):
-            enclosed_i = make_point_enclosure_assoc(row,pd,img)
-            enclosed_i_list.append(enclosed_i)
+        
+        # enclosed_i_list = []
+        
+        # for index, row in pd.iterrows():
+        #     enclosed_i = make_point_enclosure_assoc(row,pd,img)
+        #     enclosed_i_list.append(enclosed_i)
+        
+        print('Calculating enclosed_i with ',nproc,' processes')
+        t0 = time.time()
+        print("Chunksize: ",len(pd)//nproc)
+        with Pool(nproc) as pool:
+            enclosed_i_list = list(pool.imap(process_assoc, range(len(pd)),chunksize=len(pd)//nproc))
+            
+        print('enclosed_i calculated! t='+str(time.time()-t0)+' s')
+        
         pd['enclosed_i'] = enclosed_i_list
 
         # DROP ROW WITH AREA OF 1 if enclosed_i is not empty
@@ -206,8 +253,9 @@ def compute_ph_components(img,local_bg,analysis_threshold_val,lifetime_limit=0,o
         # DROP ROW WITH AREA OF 1
         
         pd = correct_first_destruction(pd,output=not output) 
-        
+        print('parent_tag')
         pd['parent_tag'] = pd.apply(lambda row: parent_tag_func(row,pd), axis=1)
+        print('Class')
         pd['Class'] = pd.apply(classify_single,axis=1)
         
     

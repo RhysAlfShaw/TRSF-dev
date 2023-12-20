@@ -1,14 +1,14 @@
-from TRSF import sf
+from DRUID import sf
 from astropy.table import Table
 import matplotlib.pyplot as plt
 from astropy.table import Table
 import argparse
 parser = argparse.ArgumentParser()
 
-parser.add_argument('--sn', type=int, default=1, help='simulation number.')
-parser.add_argument('--save_path', type=str, default='.', help='path to save the simulation to.')
-parser.add_argument('--detect_thresh', type=float, default=5, help='detection threshold for source finding.')
-parser.add_argument('--analysis_thresh', type=float, default=2, help='analysis threshold for source finding.')
+#parser.add_argument('--sn', type=int, default=1, help='simulation number.')
+#parser.add_argument('--save_path', type=str, default='.', help='path to save the simulation to.')
+#parser.add_argument('--detect_thresh', type=float, default=5, help='detection threshold for source finding.')
+#parser.add_argument('--analysis_thresh', type=float, default=2, help='analysis threshold for source finding.')
 
 # create the args object
 args = parser.parse_args()
