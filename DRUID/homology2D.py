@@ -16,6 +16,8 @@ import setproctitle
 import os
 from collections import deque
 from scipy.ndimage import label
+#import pdb
+
 
 try:
     import cupy as cp
@@ -95,9 +97,19 @@ def correct_first_destruction(pd,output):
         
         enlosed_i = row['enclosed_i']
         
-        if len(enlosed_i) >=1: # careful this lead to a bug make sure its >= 1.
+        if len(enlosed_i) >= 1: # careful this lead to a bug make sure its >= 1. This did too need to be careful of doubles
+
             new_row = row.copy()
+            #print(enlosed_i[0])
             new_row['Death'] = pd.loc[enlosed_i[0]]['Death']
+            if type(new_row['Death']) == pandas.core.series.Series:
+                #pdb.set_trace()
+                # get the Death value from the first item in the Series
+                new_row['Death'] = new_row['Death'].iloc[0]
+                #print('Death is a series')
+                #print(new_row['Death'])
+            
+           # print(new_row['Death'])
             new_row['new_row'] = 1
             new_row.name = len(pd)+i
             pd = pandas.concat((pd,new_row.to_frame().T), ignore_index=False)
@@ -305,7 +317,10 @@ def compute_ph_components(img,local_bg,analysis_threshold_val,lifetime_limit=0,o
     
     global GPU_Option 
     GPU_Option = GPU
+    t0_compute_ph = time.time()
     pd = cripser.computePH(-img,maxdim=0)
+    t1_compute_ph = time.time()
+    print('PH computed! t='+str(t1_compute_ph-t0_compute_ph)+' s')
     pd = pandas.DataFrame(pd,columns=['dim','Birth','Death','x1','y1','z1','x2','y2','z2'],index=range(1,len(pd)+1))
     pd.drop(columns=['dim','z1','z2'],inplace=True)
     pd['lifetime'] = pd['Death'] - pd['Birth']
@@ -317,11 +332,6 @@ def compute_ph_components(img,local_bg,analysis_threshold_val,lifetime_limit=0,o
         
         list_of_index_to_drop = []
     
-        #print(pd)
-        #print(local_bg)
-        
-        #plt.imshow(local_bg)
-        #plt.show()
         
         for index, row in pd.iterrows():
             # check if local_bg is a map or a value
@@ -389,13 +399,13 @@ def compute_ph_components(img,local_bg,analysis_threshold_val,lifetime_limit=0,o
                     print('Calculating area with GPU...')
                     t0 = time.time()
                     
-                    for i in range(0,len(pd)):
+                    for i in tqdm(range(0,len(pd)),total=len(pd),desc='Calculating area',disable=not output):
                         row = pd.iloc[i]
                         Birth = row.Birth
                         Death = row.Death
                         area = calculate_area_GPU(Birth,Death,row,img_gpu,img)
                         area_list.append(area)
-                        percentage_completed = (i/len(pd))*100
+                        #percentage_completed = (i/len(pd))*100
                         
                         #if percentage_completed % 10 == 0:
                         #    print(percentage_completed,'%')
@@ -409,7 +419,7 @@ def compute_ph_components(img,local_bg,analysis_threshold_val,lifetime_limit=0,o
                     enclosed_i_list = []
                     print('Calculating enclosed_i with GPU...')
                     t0 = time.time()
-                    for i in range(0,len(pd)):
+                    for i in tqdm(range(0,len(pd)),total=len(pd),desc='Calculating enclosed_i',disable=not output):
                         row = pd.iloc[i]
                         Birth = row.Birth
                         Death = row.Death
