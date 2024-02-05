@@ -1,3 +1,7 @@
+# this is an old version of the code now called DRUID. Please use DRUID instead:
+
+[DRUID LINK](https://github.com/RhysAlfShaw/DRUID)
+
 # TRSF (A General purpose Source Finder for Astronomical Images.)
 
 [![Run tests](https://github.com/RhysAlfShaw/TRSF/actions/workflows/pytest.yaml/badge.svg)](https://github.com/RhysAlfShaw/TRSF/actions/workflows/pytest.yaml)
